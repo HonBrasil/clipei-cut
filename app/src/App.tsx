@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { getCreditsSeconds, supabase } from "./lib/supabase";
+import { supabase } from "./lib/supabase";
+import { fetchAccount, type Account } from "./lib/account";
+import { Plans } from "./screens/Plans";
 import type { Project } from "./lib/types";
 import { Sidebar, type Screen } from "./components/Sidebar";
 import { Login } from "./screens/Login";
@@ -21,7 +23,8 @@ export function App() {
   const [ready, setReady] = useState(false);
   const [screen, setScreen] = useState<Screen>("home");
   const [project, setProject] = useState<Project | null>(null);
-  const [credits, setCredits] = useState<number | null>(null);
+  const [account, setAccount] = useState<Account | null>(null);
+  const credits = account ? account.totalSeconds : null;
   const online = useOnline();
 
   useEffect(() => {
@@ -34,8 +37,10 @@ export function App() {
   }, []);
 
   const refreshCredits = useCallback(() => {
-    getCreditsSeconds().then(setCredits).catch(() => setCredits(null));
+    fetchAccount().then(setAccount).catch(() => setAccount(null));
   }, []);
+  // Saldo atualizado pela transcrição (sem esperar outra consulta)
+  const setCredits = useCallback((n: number) => setAccount((a) => (a ? { ...a, totalSeconds: n } : a)), []);
 
   useEffect(() => {
     if (session) refreshCredits();
@@ -64,9 +69,10 @@ export function App() {
       <Sidebar
         screen={screen}
         credits={credits}
+        account={account}
         onNavigate={(s) => {
           setScreen(s);
-          if (s === "settings") refreshCredits();
+          if (s === "settings" || s === "plans") refreshCredits();
         }}
         onLogout={() => supabase.auth.signOut()}
       />
@@ -76,6 +82,7 @@ export function App() {
           <Home
             online={online}
             credits={credits}
+            onPlans={() => setScreen("plans")}
             onStart={(p) => {
               setProject(p);
               setScreen("analysis");
@@ -87,12 +94,15 @@ export function App() {
         {screen === "settings" && (
           <Config
             email={session.user.email ?? ""}
-            credits={credits}
+            account={account}
+            onAccount={refreshCredits}
+            onPlans={() => setScreen("plans")}
             online={online}
             onLogout={() => supabase.auth.signOut()}
             onOpenExports={() => setScreen("exports")}
           />
         )}
+        {screen === "plans" && <Plans account={account} onAccount={setAccount} />}
         {screen === "library" && (
           <Library
             onNew={() => setScreen("home")}
@@ -112,7 +122,7 @@ export function App() {
             onDone={() => setScreen("clips")}
           />
         )}
-        {screen === "clips" && project && <Clips project={project} onChange={update} onBack={() => setScreen("analysis")} />}
+        {screen === "clips" && project && <Clips project={project} paid={account ? account.plan !== "free" : false} onChange={update} onBack={() => setScreen("analysis")} onPlans={() => setScreen("plans")} />}
       </main>
       <UpdateDialog online={online} />
     </div>

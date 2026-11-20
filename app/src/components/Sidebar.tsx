@@ -2,23 +2,26 @@ import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { Icon } from "./Icon";
 import { fmtHours } from "../lib/format";
+import { PLAN_INFO, type Account } from "../lib/account";
 
-export type Screen = "home" | "library" | "analysis" | "clips" | "captions" | "exports" | "settings";
+export type Screen = "home" | "library" | "analysis" | "clips" | "captions" | "exports" | "settings" | "plans";
 
 export function Sidebar(props: {
   screen: Screen;
   credits: number | null;
+  account: Account | null;
   onNavigate: (s: Screen) => void;
   onLogout: () => void;
 }) {
-  const { screen, credits, onNavigate, onLogout } = props;
+  const { screen, credits, account, onNavigate, onLogout } = props;
   const inNew = screen === "home" || screen === "analysis";
   const inLib = screen === "library" || screen === "clips";
   const [version, setVersion] = useState("");
   useEffect(() => {
     getVersion().then(setVersion).catch(() => setVersion(""));
   }, []);
-  const pct = credits == null ? 0 : Math.min(100, (credits / 3600) * 100);
+  const allowance = account?.allowanceSeconds ?? 3600;
+  const pct = credits == null ? 0 : Math.min(100, (credits / allowance) * 100);
   return (
     <nav className="side" aria-label="Menu principal">
       <div className="logo">
@@ -44,12 +47,15 @@ export function Sidebar(props: {
 
       <div className="credits">
         <div className="row">
-          <span>Créditos de IA</span>
+          <span>{account ? `Plano ${PLAN_INFO[account.plan].name}` : "Créditos de IA"}</span>
           <b>{credits == null ? "—" : fmtHours(credits)}</b>
         </div>
         <div className="bar">
           <div style={{ width: `${pct}%` }} />
         </div>
+        <button className="btn primary" style={{ minHeight: 38, fontSize: 13 }} onClick={() => onNavigate("plans")}>
+          {account && account.plan !== "free" ? "Mais horas" : "Ver planos"}
+        </button>
         <button className="linkBtn" style={{ alignSelf: "flex-start", fontSize: 13 }} onClick={onLogout}>
           Sair da conta
         </button>

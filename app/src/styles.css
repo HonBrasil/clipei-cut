@@ -206,3 +206,14 @@ select.input { padding-right: 10px; }
 .seg button { min-height: 40px; padding: 0 14px; border: 0; border-radius: 9px; background: transparent; color: #b4b4bf; font-weight: 600; font-size: 13px; }
 .seg button.on { background: #23232c; color: var(--text); }
 .avatar { width: 52px; height: 52px; flex: 0 0 auto; border-radius: 99px; background: var(--red-tint); color: var(--red-text); display: flex; align-items: center; justify-content: center; font: 700 20px "Space Grotesk", sans-serif; }
+
+.planGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 18px; align-items: stretch; }
+.planCard { position: relative; border-radius: 20px; background: var(--card); border: 1px solid var(--line); padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+.planCard.featured { border: 2px solid var(--red-text); box-shadow: 0 18px 50px rgba(227, 18, 31, 0.12); }
+.planCard.current { outline: 2px solid #3a2f5c; outline-offset: 3px; }
+.planCard .ribbon { position: absolute; top: -12px; left: 24px; padding: 4px 10px; border-radius: 99px; background: var(--red); color: #fff; font-size: 12px; font-weight: 700; }
+.price { font-family: "Space Grotesk", sans-serif; font-size: 34px; font-weight: 700; letter-spacing: -0.02em; }
+.perks { list-style: none; margin: 4px 0 8px; padding: 0; display: flex; flex-direction: column; gap: 9px; font-size: 14px; color: var(--soft); }
+.perks li { display: flex; gap: 8px; align-items: flex-start; line-height: 1.35; }
+.pack { flex: 1 1 200px; padding: 18px; border-radius: 16px; background: var(--card2); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.planTag { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 99px; font-size: 11px; font-weight: 700; background: var(--red-tint); color: var(--red-text); }

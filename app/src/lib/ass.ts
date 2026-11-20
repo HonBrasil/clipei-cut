@@ -85,6 +85,7 @@ export function buildAss(
   hasWebcam: boolean,
   model: CaptionModel,
   censor = false,
+  watermark = false,
 ): string {
   const vertical = layout !== "wide";
   const playX = vertical ? 1080 : 1920;
@@ -110,6 +111,7 @@ export function buildAss(
     "[V4+ Styles]",
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
     `Style: Clipei,${font},${size},${base},${base},${outlineColour},&H80000000&,0,0,0,0,100,100,1,0,${borderStyle},${outline},${shadow},5,60,60,0,1`,
+    `Style: Selo,Poppins ExtraBold,${vertical ? 40 : 30},&H40FFFFFF&,&H40FFFFFF&,&H80000000&,&H80000000&,0,0,0,0,100,100,1,0,1,3,0,2,40,40,40,1`,
     `Style: Marca,${font},${Math.round(size * 0.45)},&H30FFFFFF&,&H30FFFFFF&,&H00000000&,&H80000000&,0,0,0,0,100,100,0,0,1,3,0,9,40,40,40,1`,
     "",
     "[Events]",
@@ -159,6 +161,10 @@ export function buildAss(
   if (model.brand.trim()) {
     const b = clean(model.brand).slice(0, 40);
     lines.push(`Dialogue: 1,${ts(0)},${ts(clipLen)},Marca,,0,0,0,,{\\an9\\pos(${playX - 40},40)}${b}`);
+  }
+
+  if (watermark) {
+    lines.push(`Dialogue: 2,${ts(0)},${ts(clipLen)},Selo,,0,0,0,,{\\an2\\pos(${playX / 2},${playY - (vertical ? 70 : 30)})}Feito com Clipei Cut`);
   }
 
   return [...header, ...lines, ""].join("\n");

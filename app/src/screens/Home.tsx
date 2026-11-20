@@ -14,11 +14,12 @@ const DURATIONS: Array<{ label: string; prefs: Prefs }> = [
   { label: "60–90 s", prefs: { minSec: 60, maxSec: 90 } },
 ];
 
-export function Home({ credits, online, onStart }: { credits: number | null; online: boolean; onStart: (p: Project) => void }) {
+export function Home({ credits, online, onStart, onPlans }: { credits: number | null; online: boolean; onStart: (p: Project) => void; onPlans: () => void }) {
   const [dur, setDur] = useState(1);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needHours, setNeedHours] = useState(false);
 
   async function load(path: string) {
     const ext = path.split(".").pop()?.toLowerCase() ?? "";
@@ -32,11 +33,13 @@ export function Home({ credits, online, onStart }: { credits: number | null; onl
     }
     setBusy(true);
     setError(null);
+    setNeedHours(false);
     try {
       const video = await probe(path);
       if (!video.hasAudio) throw new Error("Esse vídeo não tem áudio, e a IA precisa ouvir o que foi falado para achar os melhores momentos.");
       if (video.duration < 30) throw new Error("O vídeo é curto demais (menos de 30 segundos).");
       if (credits != null && credits < video.duration) {
+        setNeedHours(true);
         throw new Error(
           `Esse vídeo tem ${fmtTime(video.duration)} e você tem ${fmtHours(credits)} de créditos. Escolha um vídeo menor ou adicione créditos.`,
         );
@@ -98,7 +101,18 @@ export function Home({ credits, online, onStart }: { credits: number | null; onl
         </span>
       </button>
 
-      {error && <div className="error">{error}</div>}
+      {error && (
+        <div className="error">
+          {error}
+          {needHours && (
+            <div style={{ marginTop: 10 }}>
+              <button className="btn primary" onClick={onPlans}>
+                Ver planos e horas avulsas
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <section className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }} aria-labelledby="dur">
         <h2 id="dur" className="sub" style={{ fontSize: 16 }}>

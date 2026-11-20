@@ -97,3 +97,25 @@ npm run tauri dev
 ## Observações
 - O FFmpeg empacotado é a build GPL do BtbN (usado como programa separado). Revisar a licença antes da venda comercial.
 - Créditos são contados em segundos de áudio transcrito. Novos usuários ganham 1 hora no beta.
+
+## Planos e pagamentos (Mercado Pago)
+
+| Produto | Preço | Horas |
+|---|---|---|
+| Grátis | R$ 0 | 1 h/mês, marca d'água, 720p |
+| Criador | R$ 34,90/mês · R$ 349,90/ano | 15 h/mês |
+| Pro | R$ 69,90/mês · R$ 699,90/ano | 50 h/mês |
+| Studio | R$ 159,90/mês · R$ 1.599,90/ano | 150 h/mês |
+| +5 horas | R$ 24,90 | não vencem |
+| +20 horas | R$ 69,90 | não vencem |
+
+Os preços já embutem a pior taxa do Mercado Pago (4,99%). O catálogo oficial fica em
+`supabase/functions/_shared/catalog.ts` (o app nunca define o preço).
+
+Fluxo: app → função `checkout` → Mercado Pago (cartão recorrente ou pagamento único/Pix) →
+aviso em `mp-webhook` → confere o pagamento na API → `apply_purchase` libera plano/horas.
+Cada pagamento é aplicado uma única vez (tabela `payments`).
+
+Segredos no Supabase (Edge Functions › Secrets): `MP_ACCESS_TOKEN` e, opcional, `MP_WEBHOOK_SECRET`.
+Aviso (webhook) a cadastrar no Mercado Pago: `https://cnnouuyaduqwdrhkxpkx.supabase.co/functions/v1/mp-webhook`
+com os eventos **Pagamentos** e **Planos e assinaturas**.

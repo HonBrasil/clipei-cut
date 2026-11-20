@@ -13,6 +13,8 @@ import { Sidebar, type Screen } from "../components/Sidebar";
 import { Captions } from "../screens/Captions";
 import { Exports } from "../screens/Exports";
 import { Config } from "../screens/Config";
+import { Plans } from "../screens/Plans";
+import type { Account } from "../lib/account";
 
 mockConvertFileSrc("windows");
 const day = 86_400_000;
@@ -40,14 +42,16 @@ for (const id of Object.keys(FONTS) as FontId[]) {
 }
 
 const s = (new URLSearchParams(location.search).get("s") ?? "captions") as Screen;
+const acc: Account = { plan: "pro", planPeriod: "mensal", planMethod: "recorrente", planStatus: "active", planExpiresAt: new Date(Date.now() + 20 * day).toISOString(), creditsSeconds: 31 * 3600, extraSeconds: 5 * 3600, allowanceSeconds: 50 * 3600, cycleStart: new Date().toISOString(), hasSubscription: true, totalSeconds: 36 * 3600 };
 createRoot(document.getElementById("root")!).render(
   <SettingsProvider>
     <div className="shell">
-      <Sidebar screen={s} credits={2280} onNavigate={(n) => (location.search = `?s=${n}`)} onLogout={() => {}} />
+      <Sidebar screen={s} credits={acc.totalSeconds} account={acc} onNavigate={(n) => (location.search = `?s=${n}`)} onLogout={() => {}} />
       <main className="main">
         {s === "captions" && <Captions />}
         {s === "exports" && <Exports />}
-        {s === "settings" && <Config email="voce@clipei.com.br" credits={2280} online onLogout={() => {}} onOpenExports={() => {}} />}
+        {s === "settings" && <Config email="voce@clipei.com.br" account={acc} online onLogout={() => {}} onOpenExports={() => {}} onAccount={() => {}} onPlans={() => {}} />}
+        {s === "plans" && <Plans account={{ ...acc, plan: "free", allowanceSeconds: 3600, totalSeconds: 2280, extraSeconds: 0, hasSubscription: false }} onAccount={() => {}} />}
       </main>
     </div>
   </SettingsProvider>,

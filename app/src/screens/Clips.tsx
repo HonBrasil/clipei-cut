@@ -13,8 +13,8 @@ import type { Clip, Project } from "../lib/types";
 
 type ExportState = { running: boolean; current: number; total: number; pct: number; done: string[]; error?: string };
 
-export function Clips(props: { project: Project; onChange: (fn: (p: Project) => Project) => void; onBack: () => void }) {
-  const { project, onChange, onBack } = props;
+export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (p: Project) => Project) => void; onBack: () => void; onPlans: () => void }) {
+  const { project, paid, onChange, onBack, onPlans } = props;
   const { settings, update } = useSettings();
   const models = allModels(settings);
   const [modelId, setModelId] = useState(settings.captionModelId);
@@ -80,9 +80,11 @@ export function Clips(props: { project: Project; onChange: (fn: (p: Project) => 
         setExp((e) => ({ ...e, current: i + 1, pct: 0 }));
         const words = project.transcript ? wordsForClip(project.transcript.words, clip) : [];
         let assFile: string | null = null;
-        if (captions && project.transcript) {
+        const withCaptions = captions && Boolean(project.transcript);
+        if (withCaptions || !paid) {
+          // No plano Grátis vai o selo "Feito com Clipei Cut", mesmo sem legenda
           assFile = `clip_${i}.ass`;
-          const ass = buildAss(words, clip.end - clip.start, project.layout ?? "cam-top", Boolean(project.webcam), model, settings.censor);
+          const ass = buildAss(withCaptions ? words : [], clip.end - clip.start, project.layout ?? "cam-top", Boolean(project.webcam), model, settings.censor, !paid);
           await writeTextFile(await join(wdir, assFile), ass);
         }
         const outPath = await join(outDir, fileName(settings.fileNaming, i, clip.title, base, project.layout === "wide" ? "16x9" : "9x16"));
@@ -95,7 +97,7 @@ export function Clips(props: { project: Project; onChange: (fn: (p: Project) => 
           assFile,
           outPath,
           encoder,
-          quality: settings.quality,
+          quality: paid ? settings.quality : "720p30",
           beeps: settings.censor ? censorIntervals(words) : [],
           onProgress: (pct) => setExp((e) => ({ ...e, pct })),
         });
@@ -147,6 +149,17 @@ export function Clips(props: { project: Project; onChange: (fn: (p: Project) => 
           </button>
         </div>
       </div>
+
+      {!paid && (
+        <div className="toolbar" style={{ borderColor: "#6b1d24", background: "#1a0f11" }}>
+          <span className="small" style={{ color: "var(--soft)" }}>
+            No plano <b style={{ color: "var(--text)" }}>Grátis</b> os clipes saem em 720p com o selo “Feito com Clipei Cut”.
+          </span>
+          <button className="btn primary" onClick={onPlans}>
+            Tirar a marca d'água
+          </button>
+        </div>
+      )}
 
       {(exp.running || exp.done.length > 0 || exp.error) && (
         <section className="card ai" style={{ display: "flex", flexDirection: "column", gap: 10 }} aria-live="polite">

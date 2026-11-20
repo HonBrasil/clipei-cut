@@ -3,14 +3,39 @@ import { getVersion } from "@tauri-apps/api/app";
 import { check } from "@tauri-apps/plugin-updater";
 import { Icon } from "../components/Icon";
 import { Toggle } from "../components/Toggle";
+import { cancelSubscription, PLAN_INFO, type Account } from "../lib/account";
 import { detectEncoder, encoderLabel, type Encoder } from "../lib/ffmpeg";
 import { fmtHours } from "../lib/format";
 import { clearTemp } from "../lib/native";
 import { listProjects, saveProject } from "../lib/projects";
 import { exportDirOf, useSettings, type ClipsAmount, type FileNaming, type Quality, type Settings } from "../lib/settings";
 
-export function Config(props: { email: string; credits: number | null; online: boolean; onLogout: () => void; onOpenExports: () => void }) {
-  const { email, credits, online, onLogout, onOpenExports } = props;
+export function Config(props: {
+  email: string;
+  account: Account | null;
+  online: boolean;
+  onLogout: () => void;
+  onOpenExports: () => void;
+  onAccount: () => void;
+  onPlans: () => void;
+}) {
+  const { email, account, online, onLogout, onOpenExports, onAccount, onPlans } = props;
+  const credits = account ? account.totalSeconds : null;
+  const [cancelState, setCancelState] = useState<"idle" | "confirm" | "busy" | "done">("idle");
+  const [cancelMsg, setCancelMsg] = useState<string | null>(null);
+
+  async function doCancel() {
+    setCancelState("busy");
+    try {
+      const until = await cancelSubscription();
+      setCancelMsg(`Renovação cancelada. Seu plano continua até ${until ? new Date(until).toLocaleDateString("pt-BR") : "o fim do período pago"}.`);
+      setCancelState("done");
+      onAccount();
+    } catch (e) {
+      setCancelMsg(e instanceof Error ? e.message : String(e));
+      setCancelState("idle");
+    }
+  }
   const { settings, update } = useSettings();
   const [version, setVersion] = useState("");
   const [dir, setDir] = useState("");
@@ -57,7 +82,7 @@ export function Config(props: { email: string; credits: number | null; online: b
     setPrivMsg(`Transcrições apagadas de ${projects.length} projeto(s).`);
   }
 
-  const pct = credits == null ? 0 : Math.min(100, (credits / 3600) * 100);
+  const pct = credits == null ? 0 : Math.min(100, (credits / (account?.allowanceSeconds ?? 3600)) * 100);
   const sel = <K extends keyof Settings>(key: K) => (e: React.ChangeEvent<HTMLSelectElement>) => update({ [key]: e.target.value } as Partial<Settings>);
 
   return (
@@ -80,7 +105,16 @@ export function Config(props: { email: string; credits: number | null; online: b
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
               <b style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{email}</b>
-              <span className="muted small">Plano beta (teste)</span>
+              <span className="small" style={{ color: "var(--soft)" }}>
+                Plano <b style={{ color: "var(--text)" }}>{account ? PLAN_INFO[account.plan].name : "—"}</b>
+                {account?.plan !== "free" && account?.planExpiresAt && (
+                  <>
+                    {" "}
+                    · {account.planStatus === "cancelled" ? "termina" : account.planMethod === "recorrente" ? "renova" : "vale até"} em{" "}
+                    {new Date(account.planExpiresAt).toLocaleDateString("pt-BR")}
+                  </>
+                )}
+              </span>
             </div>
           </div>
           <div className="card ai" style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10, background: "var(--card2)" }}>
@@ -91,16 +125,39 @@ export function Config(props: { email: string; credits: number | null; online: b
             <div className="bar">
               <div style={{ width: `${pct}%` }} />
             </div>
-            <span className="muted small">Cada minuto de vídeo analisado usa 1 minuto de crédito.</span>
+            <span className="muted small">
+              {account && account.extraSeconds > 0 ? `Inclui ${fmtHours(account.extraSeconds)} avulsas (não vencem). ` : ""}
+              Cada minuto de vídeo analisado usa 1 minuto de crédito. As horas do plano renovam todo mês.
+            </span>
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <button className="btn primary" style={{ flex: "1 1 160px" }} disabled title="Em breve">
-              Planos (em breve)
+            <button className="btn primary" style={{ flex: "1 1 160px" }} onClick={onPlans}>
+              {account && account.plan !== "free" ? "Mudar de plano / mais horas" : "Ver planos"}
             </button>
             <button className="btn" style={{ flex: "1 1 120px" }} onClick={onLogout}>
               <Icon name="logout" size={16} /> Sair
             </button>
           </div>
+          {account?.hasSubscription && account.planStatus === "active" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {cancelState === "confirm" ? (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  <span className="small" style={{ color: "var(--soft)" }}>Cancelar a renovação automática?</span>
+                  <button className="btn" style={{ borderColor: "#6b1d24", color: "var(--red-text)" }} onClick={doCancel}>
+                    Sim, cancelar
+                  </button>
+                  <button className="btn" onClick={() => setCancelState("idle")}>
+                    Manter
+                  </button>
+                </div>
+              ) : (
+                <button className="linkBtn" style={{ alignSelf: "flex-start", color: "var(--muted)" }} onClick={() => setCancelState("confirm")} disabled={cancelState === "busy"}>
+                  {cancelState === "busy" ? "Cancelando…" : "Cancelar renovação automática"}
+                </button>
+              )}
+            </div>
+          )}
+          {cancelMsg && <div className="note">{cancelMsg}</div>}
         </section>
 
         <section className="card" aria-labelledby="c-exp" style={{ display: "flex", flexDirection: "column", gap: 14 }}>

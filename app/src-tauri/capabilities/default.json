@@ -148,6 +148,32 @@
           "path": "$APPDATA/**"
         }
       ]
+    },
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "https://www.mercadopago.com.br/*"
+        },
+        {
+          "url": "https://mercadopago.com.br/*"
+        },
+        {
+          "url": "https://*.mercadopago.com.br/*"
+        },
+        {
+          "url": "https://www.mercadopago.com/*"
+        },
+        {
+          "url": "https://*.mercadopago.com/*"
+        },
+        {
+          "url": "https://*.mercadolivre.com.br/*"
+        },
+        {
+          "url": "https://*.mercadolibre.com/*"
+        }
+      ]
     }
   ]
 }

@@ -43,8 +43,10 @@ export async function requireUser(req: Request): Promise<User | null> {
   return data.user;
 }
 
+/** Saldo total (horas do plano + horas avulsas), já com o mês renovado. */
 export async function getCredits(db: SupabaseClient, userId: string): Promise<number> {
-  const { data, error } = await db.from("profiles").select("credits_seconds").eq("id", userId).single();
+  await db.rpc("refresh_account", { p_user: userId });
+  const { data, error } = await db.from("profiles").select("credits_seconds, extra_seconds").eq("id", userId).single();
   if (error || !data) return 0;
-  return data.credits_seconds as number;
+  return (data.credits_seconds as number) + (data.extra_seconds as number);
 }
