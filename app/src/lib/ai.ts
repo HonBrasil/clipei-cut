@@ -3,7 +3,7 @@
 import { readFile } from "@tauri-apps/plugin-fs";
 import { supabase } from "./supabase";
 import type { AudioChunk } from "./ffmpeg";
-import type { Clip, Prefs, Segment, Transcript, Word } from "./types";
+import type { Clip, PostCopy, Prefs, Segment, Transcript, Word } from "./types";
 
 export class ApiError extends Error {
   constructor(public code: string, message: string) {
@@ -157,4 +157,18 @@ export function wordsForClip(words: Word[], clip: { start: number; end: number }
   return words
     .filter((w) => w.end > clip.start && w.start < clip.end)
     .map((w) => ({ word: w.word, start: w.start - clip.start, end: w.end - clip.start }));
+}
+
+/** Título, descrição e hashtags para o post (planos pagos). */
+export async function generatePost(clip: Clip, words: Word[]): Promise<PostCopy> {
+  const text = words
+    .filter((w) => w.end > clip.start && w.start < clip.end)
+    .map((w) => w.word)
+    .join(" ");
+  const res = await fetch(fnUrl("post-copy"), {
+    method: "POST",
+    headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+    body: JSON.stringify({ text, title: clip.title }),
+  });
+  return parse(res);
 }

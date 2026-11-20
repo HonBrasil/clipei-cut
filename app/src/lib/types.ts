@@ -25,7 +25,10 @@ export type Clip = {
   score: number;
   reason: string;
   hook: string;
+  post?: PostCopy; // texto do post gerado pela IA
 };
+
+export type PostCopy = { titulo: string; descricao: string; hashtags: string[] };
 
 export type Prefs = {
   minSec: number;

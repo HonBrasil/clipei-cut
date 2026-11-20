@@ -7,7 +7,8 @@ import { detectEncoder, encoderLabel, exportClip, workDir, type Encoder } from "
 import { buildAss, censorIntervals } from "../lib/ass";
 import { ensureDir, prepareFonts, revealPath } from "../lib/native";
 import { allModels, exportDirOf, useSettings, type FileNaming } from "../lib/settings";
-import { findClips, wordsForClip } from "../lib/ai";
+import { findClips, generatePost, wordsForClip } from "../lib/ai";
+import { CaptionEditor } from "../components/CaptionEditor";
 import { fmtTime, slugify } from "../lib/format";
 import type { Clip, Project } from "../lib/types";
 
@@ -26,6 +27,9 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
   const [exp, setExp] = useState<ExportState>({ running: false, current: 0, total: 0, pct: 0, done: [] });
   const [more, setMore] = useState<{ busy: boolean; msg?: string; error?: boolean }>({ busy: false });
   const [moreCount, setMoreCount] = useState(5);
+  const [panel, setPanel] = useState<{ kind: "captions" | "post"; id: string } | null>(null);
+  const [postState, setPostState] = useState<{ busy: boolean; error?: string }>({ busy: false });
+  const [copied, setCopied] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const src = useMemo(() => convertFileSrc(project.video.path), [project.video.path]);
 
@@ -63,6 +67,40 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
 
   function rename(id: string, title: string) {
     onChange((p) => ({ ...p, clips: (p.clips ?? []).map((c) => (c.id === id ? { ...c, title } : c)) }));
+  }
+
+  function editWord(index: number, text: string) {
+    onChange((p) => {
+      if (!p.transcript) return p;
+      const words = p.transcript.words.slice();
+      words[index] = { ...words[index], word: text };
+      return { ...p, transcript: { ...p.transcript, words } };
+    });
+  }
+
+  function seek(t: number) {
+    const v = videoRef.current;
+    if (!v) return;
+    v.currentTime = t;
+    v.play().catch(() => {});
+  }
+
+  async function makePost(clip: Clip) {
+    if (!project.transcript) return;
+    setPostState({ busy: true });
+    try {
+      const post = await generatePost(clip, project.transcript.words);
+      onChange((p) => ({ ...p, clips: (p.clips ?? []).map((c) => (c.id === clip.id ? { ...c, post } : c)) }));
+      setPostState({ busy: false });
+    } catch (e) {
+      setPostState({ busy: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  async function copy(label: string, text: string) {
+    await navigator.clipboard.writeText(text);
+    setCopied(label);
+    setTimeout(() => setCopied(null), 1500);
   }
 
   async function generateMore() {
@@ -259,6 +297,33 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
                 <button className="btn" style={{ minHeight: 40 }} onClick={() => setPlaying(c)}>
                   <Icon name="play" size={14} /> Assistir trecho
                 </button>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    className="btn"
+                    style={{ minHeight: 38, flex: 1, fontSize: 13, padding: "0 10px" }}
+                    disabled={!project.transcript}
+                    onClick={() => {
+                      setPlaying(c);
+                      setPanel({ kind: "captions", id: c.id });
+                    }}
+                  >
+                    <Icon name="text" size={14} /> Corrigir legenda
+                  </button>
+                  <button
+                    className="btn"
+                    style={{ minHeight: 38, flex: 1, fontSize: 13, padding: "0 10px" }}
+                    onClick={() => {
+                      if (!paid) return onPlans();
+                      setPlaying(c);
+                      setPostState({ busy: false });
+                      setPanel({ kind: "post", id: c.id });
+                      if (!c.post) makePost(c);
+                    }}
+                    title={paid ? "" : "Disponível nos planos pagos"}
+                  >
+                    {paid ? (c.post ? "Ver texto do post" : "Texto do post") : <><span className="planTag">Pago</span> Texto do post</>}
+                  </button>
+                </div>
               </article>
             );
           })}
@@ -267,7 +332,7 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
 
         <aside className="player" style={{ flex: "2 1 340px", minWidth: 0 }} aria-label="Prévia">
           <video ref={videoRef} src={src} controls preload="metadata" />
-          {playing && (
+          {playing && !panel && (
             <div className="card" style={{ padding: 16 }}>
               <b>{playing.title}</b>
               <div className="muted small" style={{ marginTop: 6 }}>
@@ -275,6 +340,54 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
               </div>
             </div>
           )}
+          {panel?.kind === "captions" && project.transcript && clips.find((c) => c.id === panel.id) && (
+            <CaptionEditor clip={clips.find((c) => c.id === panel.id)!} words={project.transcript.words} onEdit={editWord} onSeek={seek} onClose={() => setPanel(null)} />
+          )}
+          {panel?.kind === "post" && (() => {
+            const c = clips.find((x) => x.id === panel.id);
+            if (!c) return null;
+            return (
+              <div className="card postBox" style={{ padding: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                  <b>Texto do post</b>
+                  <button className="linkBtn" onClick={() => setPanel(null)}>
+                    Fechar
+                  </button>
+                </div>
+                {postState.busy && <span className="muted small">A IA está escrevendo o título, a descrição e as hashtags…</span>}
+                {postState.error && <div className="error">{postState.error}</div>}
+                {c.post && (
+                  <>
+                    {(
+                      [
+                        ["Título", c.post.titulo],
+                        ["Descrição", c.post.descricao],
+                        ["Hashtags", c.post.hashtags.join(" ")],
+                      ] as Array<[string, string]>
+                    ).map(([label, text]) => (
+                      <div key={label} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <span className="muted small">{label}</span>
+                        <div className="postField">
+                          {text}
+                          <button className="btn copy" style={{ minHeight: 30, padding: "0 10px", fontSize: 12 }} onClick={() => copy(label, text)}>
+                            {copied === label ? "Copiado!" : "Copiar"}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button className="btn primary" onClick={() => copy("tudo", `${c.post!.titulo}\n\n${c.post!.descricao}\n\n${c.post!.hashtags.join(" ")}`)}>
+                        {copied === "tudo" ? "Copiado!" : "Copiar tudo"}
+                      </button>
+                      <button className="btn" disabled={postState.busy} onClick={() => makePost(c)}>
+                        Gerar outro
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })()}
         </aside>
       </div>
     </>

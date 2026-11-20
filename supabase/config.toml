@@ -16,3 +16,6 @@ verify_jwt = true
 # O Mercado Pago não envia token do Supabase: a função valida a assinatura do aviso
 [functions.mp-webhook]
 verify_jwt = false
+
+[functions.post-copy]
+verify_jwt = true
