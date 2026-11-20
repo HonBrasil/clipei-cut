@@ -48,29 +48,40 @@ export function Analysis(props: {
       try {
         setError(null);
         // 1) Webcam (local, rápido) — já mostra a prévia enquanto o resto roda
-        set("detect", { status: "doing" });
-        const frames = await extractFrames(video);
-        const det = await detectWebcam(video, frames);
-        if (cancelled) return;
-        setConfidence(det.confidence);
-        onChange((p) => ({
-          ...p,
-          frameUrl: det.frameUrl,
-          webcam: det.webcam,
-          layout: det.webcam ? "cam-top" : det.faceCam ? "game-only" : "game-only",
-        }));
-        set("detect", { status: "done" });
+        if (project.frameUrl) {
+          set("detect", { status: "done" });
+        } else {
+          set("detect", { status: "doing" });
+          const frames = await extractFrames(video);
+          const det = await detectWebcam(video, frames);
+          if (cancelled) return;
+          setConfidence(det.confidence);
+          onChange((p) => ({
+            ...p,
+            frameUrl: det.frameUrl,
+            webcam: det.webcam,
+            layout: det.webcam ? "cam-top" : "game-only",
+          }));
+          set("detect", { status: "done" });
+        }
 
-        // 2) Áudio
-        set("audio", { status: "doing", pct: 0 });
-        const chunks = await extractAudioChunks(video, (pct) => set("audio", { status: "doing", pct }));
-        set("audio", { status: "done" });
+        // 2 e 3) Áudio + transcrição — pulados se o projeto já tem a transcrição salva (não gasta créditos de novo)
+        let transcript = project.transcript;
+        if (transcript) {
+          set("audio", { status: "done" });
+          set("transcribe", { status: "done" });
+        } else {
+          set("audio", { status: "doing", pct: 0 });
+          const chunks = await extractAudioChunks(video, (pct) => set("audio", { status: "doing", pct }));
+          set("audio", { status: "done" });
 
-        // 3) Transcrição (nuvem — só o áudio)
-        set("transcribe", { status: "doing", pct: 0 });
-        const transcript = await transcribe(chunks, "pt", (pct) => set("transcribe", { status: "doing", pct }), onCredits);
-        if (cancelled) return;
-        set("transcribe", { status: "done" });
+          set("transcribe", { status: "doing", pct: 0 });
+          transcript = await transcribe(chunks, "pt", (pct) => set("transcribe", { status: "doing", pct }), onCredits);
+          if (cancelled) return;
+          const saved = transcript;
+          onChange((p) => ({ ...p, transcript: saved }));
+          set("transcribe", { status: "done" });
+        }
         if (transcript.words.length < 20) throw new Error("Quase não há fala nesse vídeo, então a IA não consegue escolher momentos.");
 
         // 4) IA escolhe os clipes
@@ -78,7 +89,7 @@ export function Analysis(props: {
         const clips = await findClips(transcript, project.prefs, (pct) => set("ai", { status: "doing", pct }));
         if (cancelled) return;
         set("ai", { status: "done" });
-        onChange((p) => ({ ...p, transcript, clips }));
+        onChange((p) => ({ ...p, clips }));
       } catch (e) {
         if (cancelled) return;
         if (e instanceof ApiError && e.code === "sem_creditos") setError("Seus créditos de IA acabaram. Escolha um plano para continuar.");

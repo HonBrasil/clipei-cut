@@ -38,10 +38,7 @@ export async function detectWebcam(video: VideoInfo, framePaths: string[]): Prom
   for (let i = 0; i < framePaths.length; i++) {
     const bytes = await readFile(framePaths[i]);
     const blob = new Blob([bytes], { type: "image/jpeg" });
-    if (i === Math.floor(framePaths.length / 2) || !frameUrl) {
-      if (frameUrl) URL.revokeObjectURL(frameUrl);
-      frameUrl = URL.createObjectURL(blob);
-    }
+    if (i === Math.floor(framePaths.length / 2) || !frameUrl) frameUrl = toDataUrl(bytes);
     const bmp = await createImageBitmap(blob);
     fw = bmp.width;
     fh = bmp.height;
@@ -101,4 +98,11 @@ export async function detectWebcam(video: VideoInfo, framePaths: string[]): Prom
     faceCam,
     frameUrl,
   };
+}
+
+/** Converte o JPEG em data URL para poder salvar junto com o projeto. */
+function toDataUrl(bytes: Uint8Array): string {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return `data:image/jpeg;base64,${btoa(bin)}`;
 }

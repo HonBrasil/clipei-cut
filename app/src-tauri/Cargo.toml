@@ -1,6 +1,6 @@
 [package]
 name = "clipei-cut"
-version = "0.1.0"
+version = "0.1.1"
 description = "Clipei Cut — clipes automáticos com IA"
 authors = ["Clipei Studio Digital"]
 edition = "2021"

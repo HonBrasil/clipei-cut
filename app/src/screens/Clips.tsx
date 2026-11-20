@@ -95,6 +95,7 @@ export function Clips(props: { project: Project; onChange: (fn: (p: Project) => 
         setExp((e) => ({ ...e, done: [...done] }));
       }
       setExp((e) => ({ ...e, running: false }));
+      onChange((p) => ({ ...p, exported: Array.from(new Set([...(p.exported ?? []), ...done])) }));
     } catch (err) {
       setExp((e) => ({ ...e, running: false, error: err instanceof Error ? err.message : String(err) }));
     }

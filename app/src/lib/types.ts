@@ -33,11 +33,15 @@ export type Prefs = {
 };
 
 export type Project = {
+  id: string;
+  createdAt: string; // ISO
+  updatedAt?: string;
   video: VideoInfo;
   prefs: Prefs;
   transcript?: Transcript;
   clips?: Clip[];
   webcam?: Rect | null; // em pixels do vídeo original
   layout?: Layout;
-  frameUrl?: string; // quadro de referência para a tela de análise
+  frameUrl?: string; // quadro de referência (data URL JPEG, salvo junto com o projeto)
+  exported?: string[]; // caminhos dos clipes já exportados
 };

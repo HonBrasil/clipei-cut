@@ -1,26 +1,27 @@
 import { Icon } from "./Icon";
 import { fmtHours } from "../lib/format";
 
-export type Screen = "home" | "analysis" | "clips";
+export type Screen = "home" | "library" | "analysis" | "clips";
 
 export function Sidebar(props: {
   screen: Screen;
-  hasClips: boolean;
   credits: number | null;
   onNavigate: (s: Screen) => void;
   onLogout: () => void;
 }) {
-  const { screen, hasClips, credits, onNavigate, onLogout } = props;
+  const { screen, credits, onNavigate, onLogout } = props;
+  const inNew = screen === "home" || screen === "analysis";
+  const inLib = screen === "library" || screen === "clips";
   const pct = credits == null ? 0 : Math.min(100, (credits / 3600) * 100);
   return (
     <nav className="side" aria-label="Menu principal">
       <div className="logo">
         <img src="/logo-clipei-cut.png" alt="Clipei Cut" />
       </div>
-      <button className={`nav-item ${screen === "home" ? "active" : ""}`} onClick={() => onNavigate("home")} aria-current={screen === "home" ? "page" : undefined}>
+      <button className={`nav-item ${inNew ? "active" : ""}`} onClick={() => onNavigate("home")} aria-current={inNew ? "page" : undefined}>
         <Icon name="plus" /> <span className="label">Novo projeto</span>
       </button>
-      <button className={`nav-item ${screen === "clips" ? "active" : ""}`} onClick={() => onNavigate("clips")} disabled={!hasClips} aria-current={screen === "clips" ? "page" : undefined}>
+      <button className={`nav-item ${inLib ? "active" : ""}`} onClick={() => onNavigate("library")} aria-current={inLib ? "page" : undefined}>
         <Icon name="grid" /> <span className="label">Meus clipes</span>
       </button>
       <button className="nav-item" disabled>

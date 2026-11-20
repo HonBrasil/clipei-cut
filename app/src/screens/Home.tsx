@@ -5,6 +5,7 @@ import { Icon } from "../components/Icon";
 import { probe } from "../lib/ffmpeg";
 import { fmtHours, fmtTime } from "../lib/format";
 import type { Prefs, Project } from "../lib/types";
+import { newProjectId } from "../lib/projects";
 
 const VIDEO_EXT = ["mp4", "mkv", "mov", "flv", "webm", "avi", "ts", "m4v"];
 const DURATIONS: Array<{ label: string; prefs: Prefs }> = [
@@ -36,7 +37,7 @@ export function Home({ credits, onStart }: { credits: number | null; onStart: (p
           `Esse vídeo tem ${fmtTime(video.duration)} e você tem ${fmtHours(credits)} de créditos. Escolha um vídeo menor ou adicione créditos.`,
         );
       }
-      onStart({ video, prefs: DURATIONS[dur].prefs, layout: "cam-top" });
+      onStart({ id: newProjectId(), createdAt: new Date().toISOString(), video, prefs: DURATIONS[dur].prefs, layout: "cam-top" });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
