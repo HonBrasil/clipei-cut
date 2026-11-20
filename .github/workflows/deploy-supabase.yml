@@ -1,0 +1,36 @@
+name: Publicar servidor (Supabase)
+
+on:
+  push:
+    branches: [main]
+    paths: ["supabase/**"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF || secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Conectar ao projeto
+        run: supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Atualizar o banco de dados
+        run: supabase db push --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Guardar as chaves das IAs no servidor
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: supabase secrets set --project-ref "$PROJECT_REF" GROQ_API_KEY="$GROQ_API_KEY" ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
+
+      - name: Publicar as funções
+        run: supabase functions deploy transcribe analyze --project-ref "$PROJECT_REF"

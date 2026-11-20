@@ -1,0 +1,281 @@
+import { useEffect, useRef, useState, type PointerEvent as RPointerEvent } from "react";
+import { Icon } from "../components/Icon";
+import { extractAudioChunks, extractFrames } from "../lib/ffmpeg";
+import { detectWebcam } from "../lib/detect";
+import { ApiError, findClips, transcribe } from "../lib/ai";
+import { fmtTime } from "../lib/format";
+import type { Layout, Project, Rect } from "../lib/types";
+
+type StepId = "detect" | "audio" | "transcribe" | "ai";
+type StepState = { status: "wait" | "doing" | "done"; pct?: number };
+
+const STEP_LABEL: Record<StepId, string> = {
+  detect: "Detectando a webcam",
+  audio: "Separando o áudio",
+  transcribe: "Transcrevendo o que foi falado",
+  ai: "IA escolhendo os melhores momentos",
+};
+
+export function Analysis(props: {
+  project: Project;
+  onChange: (fn: (p: Project) => Project) => void;
+  onCredits: (n: number) => void;
+  onBack: () => void;
+  onDone: () => void;
+}) {
+  const { project, onChange, onCredits, onBack, onDone } = props;
+  const { video } = project;
+  const [steps, setSteps] = useState<Record<StepId, StepState>>({
+    detect: { status: "wait" },
+    audio: { status: "wait" },
+    transcribe: { status: "wait" },
+    ai: { status: "wait" },
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [runId, setRunId] = useState(0);
+  const [confidence, setConfidence] = useState(0);
+  const started = useRef(-1);
+  const alreadyDone = Boolean(project.clips);
+
+  const set = (id: StepId, s: StepState) => setSteps((prev) => ({ ...prev, [id]: s }));
+
+  useEffect(() => {
+    if (alreadyDone || started.current === runId) return;
+    started.current = runId;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setError(null);
+        // 1) Webcam (local, rápido) — já mostra a prévia enquanto o resto roda
+        set("detect", { status: "doing" });
+        const frames = await extractFrames(video);
+        const det = await detectWebcam(video, frames);
+        if (cancelled) return;
+        setConfidence(det.confidence);
+        onChange((p) => ({
+          ...p,
+          frameUrl: det.frameUrl,
+          webcam: det.webcam,
+          layout: det.webcam ? "cam-top" : det.faceCam ? "game-only" : "game-only",
+        }));
+        set("detect", { status: "done" });
+
+        // 2) Áudio
+        set("audio", { status: "doing", pct: 0 });
+        const chunks = await extractAudioChunks(video, (pct) => set("audio", { status: "doing", pct }));
+        set("audio", { status: "done" });
+
+        // 3) Transcrição (nuvem — só o áudio)
+        set("transcribe", { status: "doing", pct: 0 });
+        const transcript = await transcribe(chunks, "pt", (pct) => set("transcribe", { status: "doing", pct }), onCredits);
+        if (cancelled) return;
+        set("transcribe", { status: "done" });
+        if (transcript.words.length < 20) throw new Error("Quase não há fala nesse vídeo, então a IA não consegue escolher momentos.");
+
+        // 4) IA escolhe os clipes
+        set("ai", { status: "doing", pct: 0 });
+        const clips = await findClips(transcript, project.prefs, (pct) => set("ai", { status: "doing", pct }));
+        if (cancelled) return;
+        set("ai", { status: "done" });
+        onChange((p) => ({ ...p, transcript, clips }));
+      } catch (e) {
+        if (cancelled) return;
+        if (e instanceof ApiError && e.code === "sem_creditos") setError("Seus créditos de IA acabaram. Escolha um plano para continuar.");
+        else setError(e instanceof Error ? e.message : String(e));
+        setSteps((prev) => {
+          const next = { ...prev };
+          (Object.keys(next) as StepId[]).forEach((k) => next[k].status === "doing" && (next[k] = { status: "wait" }));
+          return next;
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runId]);
+
+  const ready = Boolean(project.clips);
+  const layout = project.layout ?? "cam-top";
+
+  return (
+    <>
+      <header style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", justifyContent: "space-between", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <button className="linkBtn" style={{ alignSelf: "flex-start", display: "flex", gap: 6, alignItems: "center" }} onClick={onBack}>
+            <Icon name="back" size={14} /> Voltar
+          </button>
+          <h1 className="title">
+            <span className="sl">//</span> Analisando seu <em>vídeo</em>
+          </h1>
+          <span className="muted small">
+            {video.name} · {fmtTime(video.duration)} · {video.width}×{video.height} · {Math.round(video.fps)} fps
+          </span>
+        </div>
+      </header>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "flex-start" }}>
+        <section style={{ flex: "3 1 520px", minWidth: 0, display: "flex", flexDirection: "column", gap: 12 }} aria-label="Pré-visualização">
+          {project.frameUrl ? (
+            <CamEditor
+              frameUrl={project.frameUrl}
+              video={{ w: video.width, h: video.height }}
+              rect={layout === "cam-top" ? project.webcam ?? null : null}
+              confidence={confidence}
+              onRect={(r) => onChange((p) => ({ ...p, webcam: r }))}
+            />
+          ) : (
+            <div className="frame" style={{ aspectRatio: `${video.width} / ${video.height}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span className="muted">Carregando prévia…</span>
+            </div>
+          )}
+          <span className="muted small">
+            {layout !== "cam-top"
+              ? "Nesse formato a webcam não é usada."
+              : project.webcam
+                ? "Arraste o retângulo para ajustar a área da câmera. Use o canto branco para mudar o tamanho."
+                : "Não encontramos webcam. Clique em “Marcar webcam” se o vídeo tiver uma câmera."}
+          </span>
+          {layout === "cam-top" && !project.webcam && project.frameUrl && (
+            <button
+              className="btn"
+              style={{ alignSelf: "flex-start" }}
+              onClick={() =>
+                onChange((p) => ({
+                  ...p,
+                  webcam: { x: Math.round(video.width * 0.7), y: Math.round(video.height * 0.05), w: Math.round(video.width * 0.26), h: Math.round(video.width * 0.26 * 0.75) },
+                }))
+              }
+            >
+              Marcar webcam
+            </button>
+          )}
+        </section>
+
+        <section className="card" style={{ flex: "2 1 360px", minWidth: 0, display: "flex", flexDirection: "column", gap: 18 }} aria-label="Progresso e formato">
+          <ol className="steps">
+            {(Object.keys(STEP_LABEL) as StepId[]).map((id) => {
+              const s = ready ? { status: "done" as const } : steps[id];
+              return (
+                <li key={id} className={`step ${s.status}`}>
+                  <span className="dot">{s.status === "done" && <Icon name="check" size={12} color="#0a0a0d" width={3.4} />}</span>
+                  {STEP_LABEL[id]}
+                  {s.status === "doing" && s.pct != null && <span className="pct">{Math.round(s.pct * 100)}%</span>}
+                </li>
+              );
+            })}
+          </ol>
+
+          {error && (
+            <div className="error">
+              {error}
+              <div style={{ marginTop: 10 }}>
+                <button className="btn" onClick={() => setRunId((n) => n + 1)}>
+                  Tentar de novo
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <h2 className="sub" style={{ fontSize: 16 }}>
+              Formato do clipe
+            </h2>
+            <div className="layouts">
+              <LayoutBtn id="cam-top" cur={layout} name="Cam em cima" desc="Webcam no topo e jogo embaixo" onPick={(l) => onChange((p) => ({ ...p, layout: l }))} />
+              <LayoutBtn id="game-only" cur={layout} name="Recorte central" desc="Vertical, sem separar a câmera" onPick={(l) => onChange((p) => ({ ...p, layout: l }))} />
+              <LayoutBtn id="wide" cur={layout} name="Horizontal" desc="16:9 para YouTube" onPick={(l) => onChange((p) => ({ ...p, layout: l }))} />
+            </div>
+          </div>
+
+          <button className="btn primary big" disabled={!ready} onClick={onDone}>
+            {ready ? `Ver ${project.clips!.length} clipes` : "Aguarde a análise…"} <Icon name="arrow" />
+          </button>
+          <span className="muted small" style={{ textAlign: "center" }}>
+            Usa {fmtTime(video.duration)} dos seus créditos · só o áudio é enviado para a IA
+          </span>
+        </section>
+      </div>
+    </>
+  );
+}
+
+function LayoutBtn(props: { id: Layout; cur: Layout; name: string; desc: string; onPick: (l: Layout) => void }) {
+  const on = props.id === props.cur;
+  const mini =
+    props.id === "wide" ? (
+      <div style={{ width: 96, height: 54, borderRadius: 6, background: "#26303c" }} />
+    ) : (
+      <div style={{ width: 46, height: 82, borderRadius: 6, overflow: "hidden", background: "#26303c", display: "flex", flexDirection: "column" }}>
+        {props.id === "cam-top" && <div style={{ height: "38%", background: "#5b4a78" }} />}
+      </div>
+    );
+  return (
+    <button className={`layout ${on ? "on" : ""}`} aria-pressed={on} onClick={() => props.onPick(props.id)}>
+      <div className="mini">{mini}</div>
+      <b>{props.name}</b>
+      <span>{props.desc}</span>
+    </button>
+  );
+}
+
+/** Imagem do vídeo com o retângulo da webcam arrastável/redimensionável. */
+function CamEditor(props: { frameUrl: string; video: { w: number; h: number }; rect: Rect | null; confidence: number; onRect: (r: Rect) => void }) {
+  const { frameUrl, video, rect, confidence, onRect } = props;
+  const box = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ mode: "move" | "resize"; sx: number; sy: number; start: Rect } | null>(null);
+
+  function begin(e: RPointerEvent, mode: "move" | "resize") {
+    if (!rect) return;
+    e.stopPropagation();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    drag.current = { mode, sx: e.clientX, sy: e.clientY, start: rect };
+  }
+  function move(e: RPointerEvent) {
+    const d = drag.current;
+    const el = box.current;
+    if (!d || !el) return;
+    const k = video.w / el.clientWidth;
+    const dx = (e.clientX - d.sx) * k;
+    const dy = (e.clientY - d.sy) * k;
+    let r: Rect;
+    if (d.mode === "move") {
+      r = { ...d.start, x: clamp(d.start.x + dx, 0, video.w - d.start.w), y: clamp(d.start.y + dy, 0, video.h - d.start.h) };
+    } else {
+      r = { ...d.start, w: clamp(d.start.w + dx, 80, video.w - d.start.x), h: clamp(d.start.h + dy, 60, video.h - d.start.y) };
+    }
+    onRect({ x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.w), h: Math.round(r.h) });
+  }
+  function end() {
+    drag.current = null;
+  }
+
+  return (
+    <div ref={box} className="frame" onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
+      <img src={frameUrl} alt="Quadro do vídeo" />
+      {rect && (
+        <div
+          className="camBox"
+          onPointerDown={(e) => begin(e, "move")}
+          style={{
+            left: `${(rect.x / video.w) * 100}%`,
+            top: `${(rect.y / video.h) * 100}%`,
+            width: `${(rect.w / video.w) * 100}%`,
+            height: `${(rect.h / video.h) * 100}%`,
+          }}
+        >
+          <span className="tag" style={rect.y / video.h < 0.08 ? { top: "auto", bottom: -30 } : undefined}>
+            Webcam{confidence > 0 ? ` · ${Math.round(confidence * 100)}%` : ""}
+          </span>
+          <span className="handle" onPointerDown={(e) => begin(e, "resize")} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function clamp(n: number, a: number, b: number) {
+  return Math.min(Math.max(n, a), Math.max(a, b));
+}

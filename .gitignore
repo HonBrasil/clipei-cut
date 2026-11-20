@@ -1,0 +1,21 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+
+# Tauri
+app/src-tauri/target/
+app/src-tauri/gen/
+app/src-tauri/binaries/*
+!app/src-tauri/binaries/.gitkeep
+
+# Baixados por "npm run assets"
+app/public/mediapipe/
+
+# Supabase local
+supabase/.temp/
+supabase/.branches/
+
+.DS_Store
+Thumbs.db

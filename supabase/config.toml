@@ -1,0 +1,8 @@
+# Configuração mínima do Supabase CLI para o Clipei Cut
+project_id = "clipei-cut"
+
+[functions.transcribe]
+verify_jwt = true
+
+[functions.analyze]
+verify_jwt = true
