@@ -7,7 +7,7 @@ import { detectEncoder, encoderLabel, exportClip, workDir, type Encoder } from "
 import { buildAss, censorIntervals } from "../lib/ass";
 import { ensureDir, prepareFonts, revealPath } from "../lib/native";
 import { allModels, exportDirOf, useSettings, type FileNaming } from "../lib/settings";
-import { wordsForClip } from "../lib/ai";
+import { findClips, wordsForClip } from "../lib/ai";
 import { fmtTime, slugify } from "../lib/format";
 import type { Clip, Project } from "../lib/types";
 
@@ -24,6 +24,8 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
   const [captions, setCaptions] = useState(Boolean(project.transcript));
   const [encoder, setEncoder] = useState<Encoder | null>(null);
   const [exp, setExp] = useState<ExportState>({ running: false, current: 0, total: 0, pct: 0, done: [] });
+  const [more, setMore] = useState<{ busy: boolean; msg?: string; error?: boolean }>({ busy: false });
+  const [moreCount, setMoreCount] = useState(5);
   const videoRef = useRef<HTMLVideoElement>(null);
   const src = useMemo(() => convertFileSrc(project.video.path), [project.video.path]);
 
@@ -61,6 +63,24 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
 
   function rename(id: string, title: string) {
     onChange((p) => ({ ...p, clips: (p.clips ?? []).map((c) => (c.id === id ? { ...c, title } : c)) }));
+  }
+
+  async function generateMore() {
+    if (!project.transcript) return;
+    setMore({ busy: true });
+    try {
+      const novos = await findClips(project.transcript, project.prefs, undefined, 8, { paid: true, exclude: clips, count: moreCount });
+      const ids = new Set(clips.map((c) => c.id));
+      const fresh = novos.filter((c) => !ids.has(c.id));
+      onChange((p) => ({ ...p, clips: [...(p.clips ?? []), ...fresh] }));
+      setSelected((sel) => new Set([...sel, ...fresh.map((c) => c.id)]));
+      setMore({
+        busy: false,
+        msg: fresh.length ? `+${fresh.length} clipes novos no fim da lista (já marcados).` : "A IA não encontrou outros momentos bons nesse vídeo.",
+      });
+    } catch (e) {
+      setMore({ busy: false, error: true, msg: e instanceof Error ? e.message : String(e) });
+    }
   }
 
   async function runExport() {
@@ -149,6 +169,31 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
           </button>
         </div>
       </div>
+
+      <div className="toolbar" style={{ borderColor: "#3a2f5c" }}>
+        <span className="small" style={{ color: "var(--soft)" }}>
+          <b style={{ color: "var(--purple-text)" }}>Quer mais opções?</b> A IA procura outros momentos sem repetir os atuais e sem gastar horas.
+        </span>
+        {paid ? (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <select className="input" style={{ height: 44 }} value={moreCount} aria-label="Quantos clipes a mais" onChange={(e) => setMoreCount(Number(e.target.value))}>
+              {[3, 5, 10].map((n) => (
+                <option key={n} value={n}>
+                  +{n} clipes
+                </option>
+              ))}
+            </select>
+            <button className="btn ai" onClick={generateMore} disabled={more.busy || !project.transcript}>
+              {more.busy ? "Procurando…" : "Gerar mais clipes"}
+            </button>
+          </div>
+        ) : (
+          <button className="btn" onClick={onPlans}>
+            <span className="planTag">Planos pagos</span> Gerar mais clipes
+          </button>
+        )}
+      </div>
+      {more.msg && <div className={more.error ? "error" : "note"}>{more.msg}</div>}
 
       {!paid && (
         <div className="toolbar" style={{ borderColor: "#6b1d24", background: "#1a0f11" }}>

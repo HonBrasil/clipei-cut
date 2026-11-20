@@ -25,6 +25,7 @@ export function App() {
   const [project, setProject] = useState<Project | null>(null);
   const [account, setAccount] = useState<Account | null>(null);
   const credits = account ? account.totalSeconds : null;
+  const paid = Boolean(account && account.plan !== "free");
   const online = useOnline();
 
   useEffect(() => {
@@ -82,6 +83,7 @@ export function App() {
           <Home
             online={online}
             credits={credits}
+            paid={paid}
             onPlans={() => setScreen("plans")}
             onStart={(p) => {
               setProject(p);
@@ -116,13 +118,14 @@ export function App() {
           <Analysis
             project={project}
             online={online}
+            paid={paid}
             onChange={update}
             onCredits={setCredits}
             onBack={() => setScreen(project.transcript ? "library" : "home")}
             onDone={() => setScreen("clips")}
           />
         )}
-        {screen === "clips" && project && <Clips project={project} paid={account ? account.plan !== "free" : false} onChange={update} onBack={() => setScreen("analysis")} onPlans={() => setScreen("plans")} />}
+        {screen === "clips" && project && <Clips project={project} paid={paid} onChange={update} onBack={() => setScreen("analysis")} onPlans={() => setScreen("plans")} />}
       </main>
       <UpdateDialog online={online} />
     </div>

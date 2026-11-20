@@ -30,6 +30,7 @@ export type Clip = {
 export type Prefs = {
   minSec: number;
   maxSec: number;
+  count?: number | null; // quantidade escolhida (planos pagos); null = automático
 };
 
 export type Project = {

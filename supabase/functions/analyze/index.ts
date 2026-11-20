@@ -1,6 +1,6 @@
 // Recebe a transcrição (com tempos) e pede ao Claude Haiku os melhores
 // momentos para virar clipes. Devolve uma lista com início, fim, título e nota.
-import { corsHeaders, env, fail, json, requireUser } from "../_shared/common.ts";
+import { admin, corsHeaders, env, fail, json, requireUser } from "../_shared/common.ts";
 
 type Line = { s: number; e: number; t: string };
 type Clip = { start: number; end: number; title: string; score: number; reason: string; hook: string };
@@ -26,6 +26,8 @@ Regras:
 - "reason": 2 a 5 palavras explicando por que foi escolhido (ex.: "Reação engraçada", "Dica útil").
 - "hook": a primeira frase do clipe, como foi dita.
 - Se não houver momentos bons, devolva lista vazia.
+- Quando for pedida uma quantidade exata, tente chegar nela usando também momentos medianos (com nota menor), mas nunca invente trechos que não existem.
+- Nunca repita nem sobreponha os trechos listados em "Já escolhidos".
 
 Responda APENAS com JSON válido, sem texto antes ou depois, no formato:
 {"clips":[{"start":0,"end":0,"title":"","score":0,"reason":"","hook":""}]}`;
@@ -37,7 +39,7 @@ Deno.serve(async (req) => {
   const user = await requireUser(req);
   if (!user) return fail("nao_autenticado", "Faça login novamente.", 401);
 
-  let body: { lines?: Line[]; minSec?: number; maxSec?: number; maxClips?: number };
+  let body: { lines?: Line[]; minSec?: number; maxSec?: number; maxClips?: number; exact?: boolean; exclude?: Array<{ s: number; e: number }> };
   try {
     body = await req.json();
   } catch {
@@ -48,7 +50,19 @@ Deno.serve(async (req) => {
   if (lines.length === 0) return json({ clips: [] });
   const minSec = clamp(Number(body.minSec ?? 20), 5, 180);
   const maxSec = clamp(Number(body.maxSec ?? 60), minSec + 5, 300);
-  const maxClips = clamp(Number(body.maxClips ?? 8), 1, 20);
+  let maxClips = clamp(Number(body.maxClips ?? 8), 1, 20);
+  const exclude = (Array.isArray(body.exclude) ? body.exclude : [])
+    .filter((x) => Number.isFinite(x?.s) && Number.isFinite(x?.e))
+    .slice(0, 200);
+
+  // Plano Grátis: no máximo 3 clipes e sem "gerar mais"
+  const { data: prof } = await admin().from("profiles").select("plan").eq("id", user.id).single();
+  const paid = Boolean(prof && prof.plan !== "free");
+  if (!paid) {
+    if (exclude.length > 0) return fail("plano", "Gerar mais clipes está disponível nos planos pagos.", 403);
+    maxClips = Math.min(maxClips, 3);
+  }
+  const exact = paid && body.exact === true;
 
   const transcript = lines
     .filter((l) => Number.isFinite(l.s) && Number.isFinite(l.e) && typeof l.t === "string")
@@ -68,12 +82,16 @@ Deno.serve(async (req) => {
     },
     body: JSON.stringify({
       model: env("ANTHROPIC_MODEL", "claude-haiku-5-5"),
-      max_tokens: 4000,
+      max_tokens: 6000,
       system: SYSTEM,
       messages: [
         {
           role: "user",
-          content: `Duração de cada clipe: entre ${minSec} e ${maxSec} segundos.\nEscolha no máximo ${maxClips} clipes.\n\nTranscrição:\n${transcript}`,
+          content:
+            `Duração de cada clipe: entre ${minSec} e ${maxSec} segundos.\n` +
+            (exact ? `Escolha ${maxClips} clipes (quantidade pedida pelo usuário).\n` : `Escolha no máximo ${maxClips} clipes.\n`) +
+            (exclude.length ? `Já escolhidos (não repetir): ${exclude.map((x) => `[${x.s.toFixed(1)}-${x.e.toFixed(1)}]`).join(" ")}\n` : "") +
+            `\nTranscrição:\n${transcript}`,
         },
       ],
     }),
@@ -109,6 +127,7 @@ Deno.serve(async (req) => {
     const len = end - start;
     if (len < minSec * 0.8 || len > maxSec * 1.2) continue;
     if (clips.some((o) => start < o.end && end > o.start)) continue;
+    if (exclude.some((o) => start < o.e - 2 && end > o.s + 2)) continue;
     clips.push({
       start,
       end,

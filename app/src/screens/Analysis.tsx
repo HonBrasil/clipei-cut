@@ -20,12 +20,13 @@ const STEP_LABEL: Record<StepId, string> = {
 export function Analysis(props: {
   project: Project;
   online: boolean;
+  paid: boolean;
   onChange: (fn: (p: Project) => Project) => void;
   onCredits: (n: number) => void;
   onBack: () => void;
   onDone: () => void;
 }) {
-  const { project, online, onChange, onCredits, onBack, onDone } = props;
+  const { project, online, paid, onChange, onCredits, onBack, onDone } = props;
   const { settings } = useSettings();
   const { video } = project;
   const [steps, setSteps] = useState<Record<StepId, StepState>>({
@@ -93,7 +94,7 @@ export function Analysis(props: {
         // 4) IA escolhe os clipes
         set("ai", { status: "doing", pct: 0 });
         const perHour = { poucos: 4, equilibrado: 8, muitos: 14 }[settings.clipsAmount];
-        const clips = await findClips(transcript, project.prefs, (pct) => set("ai", { status: "doing", pct }), perHour);
+        const clips = await findClips(transcript, project.prefs, (pct) => set("ai", { status: "doing", pct }), perHour, { paid });
         if (cancelled) return;
         set("ai", { status: "done" });
         onChange((p) => ({ ...p, clips }));

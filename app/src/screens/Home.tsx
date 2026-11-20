@@ -14,8 +14,9 @@ const DURATIONS: Array<{ label: string; prefs: Prefs }> = [
   { label: "60–90 s", prefs: { minSec: 60, maxSec: 90 } },
 ];
 
-export function Home({ credits, online, onStart, onPlans }: { credits: number | null; online: boolean; onStart: (p: Project) => void; onPlans: () => void }) {
+export function Home({ credits, online, paid, onStart, onPlans }: { credits: number | null; online: boolean; paid: boolean; onStart: (p: Project) => void; onPlans: () => void }) {
   const [dur, setDur] = useState(1);
+  const [count, setCount] = useState<number | null>(null);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +45,7 @@ export function Home({ credits, online, onStart, onPlans }: { credits: number | 
           `Esse vídeo tem ${fmtTime(video.duration)} e você tem ${fmtHours(credits)} de créditos. Escolha um vídeo menor ou adicione créditos.`,
         );
       }
-      onStart({ id: newProjectId(), createdAt: new Date().toISOString(), video, prefs: DURATIONS[dur].prefs, layout: "cam-top" });
+      onStart({ id: newProjectId(), createdAt: new Date().toISOString(), video, prefs: { ...DURATIONS[dur].prefs, count: paid ? count : null }, layout: "cam-top" });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -68,7 +69,7 @@ export function Home({ credits, online, onStart, onPlans }: { credits: number | 
       .then((u) => (unlisten = u));
     return () => unlisten?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dur, credits, online]);
+  }, [dur, credits, online, count, paid]);
 
   async function pick() {
     const selected = await open({ multiple: false, filters: [{ name: "Vídeos", extensions: VIDEO_EXT }] });
@@ -126,6 +127,42 @@ export function Home({ credits, online, onStart, onPlans }: { credits: number | 
           ))}
         </div>
         <span className="muted small">A legenda em português é gerada automaticamente. Só o áudio vai para a IA.</span>
+      </section>
+
+      <section className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }} aria-labelledby="qtd">
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <h2 id="qtd" className="sub" style={{ fontSize: 16 }}>
+            Quantos clipes gerar
+          </h2>
+          {!paid && <span className="planTag">Planos pagos</span>}
+        </div>
+        <div className="chips">
+          {([null, 5, 10, 15, 20] as Array<number | null>).map((n) => {
+            const on = paid ? count === n : n === null;
+            return (
+              <button
+                key={String(n)}
+                className={`chip ${on ? "on" : ""}`}
+                aria-pressed={on}
+                disabled={!paid && n !== null}
+                title={!paid && n !== null ? "Disponível nos planos pagos" : undefined}
+                onClick={() => setCount(n)}
+              >
+                {n === null ? (paid ? "Automático" : "Até 3 (Grátis)") : `${n} clipes`}
+              </button>
+            );
+          })}
+        </div>
+        {paid ? (
+          <span className="muted small">No automático, a IA escolhe só os momentos mais fortes. Com uma quantidade, ela completa até chegar no número pedido.</span>
+        ) : (
+          <span className="muted small">
+            No Grátis a IA entrega até 3 clipes por vídeo.{" "}
+            <button className="linkBtn" onClick={onPlans}>
+              Ver planos
+            </button>
+          </span>
+        )}
       </section>
 
       <section className="card" aria-labelledby="net" style={{ display: "flex", flexDirection: "column", gap: 10 }}>

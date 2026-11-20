@@ -81,7 +81,16 @@ export async function transcribe(
 }
 
 /** Pede à IA os melhores momentos, em janelas de ~40 min para vídeos longos. */
-export async function findClips(t: Transcript, prefs: Prefs, onProgress?: (p: number) => void, perHour = 8): Promise<Clip[]> {
+export async function findClips(
+  t: Transcript,
+  prefs: Prefs,
+  onProgress?: (p: number) => void,
+  perHour = 8,
+  opts: { paid?: boolean; exclude?: Clip[]; count?: number | null } = {},
+): Promise<Clip[]> {
+  const total = Math.max(1, (t.segments[t.segments.length - 1]?.end ?? 0) - (t.segments[0]?.start ?? 0));
+  const count = opts.paid ? (opts.count ?? prefs.count ?? null) : null;
+  const exclude = opts.exclude ?? [];
   const WINDOW = 40 * 60;
   const windows: Segment[][] = [];
   let cur: Segment[] = [];
@@ -101,7 +110,9 @@ export async function findClips(t: Transcript, prefs: Prefs, onProgress?: (p: nu
   for (let i = 0; i < windows.length; i++) {
     const w = windows[i];
     const span = w[w.length - 1].end - w[0].start;
-    const maxClips = Math.min(20, Math.max(3, Math.round((span / 3600) * perHour)));
+    const maxClips = count
+      ? Math.min(20, Math.max(1, Math.ceil((count * span) / total)))
+      : Math.min(20, Math.max(3, Math.round((span / 3600) * perHour)));
     const data = await withRetry(async () => {
       const res = await fetch(fnUrl("analyze"), {
         method: "POST",
@@ -111,17 +122,21 @@ export async function findClips(t: Transcript, prefs: Prefs, onProgress?: (p: nu
           minSec: prefs.minSec,
           maxSec: prefs.maxSec,
           maxClips,
+          exact: Boolean(count),
+          exclude: [...exclude, ...all].filter((c) => c.end > w[0].start && c.start < w[w.length - 1].end).map((c) => ({ s: c.start, e: c.end })),
         }),
       });
       return parse(res);
     });
     for (const c of data.clips as Omit<Clip, "id">[]) {
-      if (all.some((o) => c.start < o.end && c.end > o.start)) continue;
+      if ([...all, ...exclude].some((o) => c.start < o.end - 2 && c.end > o.start + 2)) continue;
       all.push({ ...snapToWords(c, t.words), id: `${Math.round(c.start * 10)}` });
     }
     onProgress?.((i + 1) / windows.length);
   }
-  return all.sort((a, b) => b.score - a.score);
+  const sorted = all.sort((a, b) => b.score - a.score);
+  // Plano Grátis: no máximo 3 clipes; quantidade escolhida: corta no número pedido
+  return sorted.slice(0, opts.paid ? (count ?? 200) : 3);
 }
 
 /** Ajusta início/fim para não cortar palavras no meio. */
