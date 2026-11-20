@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { Icon } from "./Icon";
 import { fmtHours } from "../lib/format";
 
@@ -12,6 +14,10 @@ export function Sidebar(props: {
   const { screen, credits, onNavigate, onLogout } = props;
   const inNew = screen === "home" || screen === "analysis";
   const inLib = screen === "library" || screen === "clips";
+  const [version, setVersion] = useState("");
+  useEffect(() => {
+    getVersion().then(setVersion).catch(() => setVersion(""));
+  }, []);
   const pct = credits == null ? 0 : Math.min(100, (credits / 3600) * 100);
   return (
     <nav className="side" aria-label="Menu principal">
@@ -46,6 +52,7 @@ export function Sidebar(props: {
           Sair da conta
         </button>
       </div>
+      {version && <span className="muted" style={{ fontSize: 11, padding: "8px 12px 0" }}>Clipei Cut versão {version}</span>}
     </nav>
   );
 }
