@@ -25,13 +25,17 @@
       "csp": "default-src 'self'; img-src 'self' data: blob: asset: http://asset.localhost; media-src 'self' blob: asset: http://asset.localhost; connect-src 'self' https://*.supabase.co ipc: http://ipc.localhost; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:",
       "assetProtocol": {
         "enable": true,
-        "scope": ["**"]
+        "scope": [
+          "**"
+        ]
       }
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "publisher": "Clipei Studio Digital",
     "category": "Video",
     "shortDescription": "Clipes automáticos com IA para criadores",
@@ -41,11 +45,28 @@
       "icons/128x128@2x.png",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/ffmpeg", "binaries/ffprobe"],
+    "externalBin": [
+      "binaries/ffmpeg",
+      "binaries/ffprobe"
+    ],
     "windows": {
       "nsis": {
-        "languages": ["PortugueseBR"],
+        "languages": [
+          "PortugueseBR"
+        ],
         "installMode": "currentUser"
+      }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY1NTQ4M0FDMjVCOTQ4MTIKUldRU1NMa2xySU5VOVlZelRqZFVCalZNaTNjWG0wekdzYmoyZlJjQ3RZMldmditWcGRwUGlUUm8K",
+      "endpoints": [
+        "https://github.com/HonBrasil/clipei-cut/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

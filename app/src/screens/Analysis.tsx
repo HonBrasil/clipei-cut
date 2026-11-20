@@ -18,12 +18,13 @@ const STEP_LABEL: Record<StepId, string> = {
 
 export function Analysis(props: {
   project: Project;
+  online: boolean;
   onChange: (fn: (p: Project) => Project) => void;
   onCredits: (n: number) => void;
   onBack: () => void;
   onDone: () => void;
 }) {
-  const { project, onChange, onCredits, onBack, onDone } = props;
+  const { project, online, onChange, onCredits, onBack, onDone } = props;
   const { video } = project;
   const [steps, setSteps] = useState<Record<StepId, StepState>>({
     detect: { status: "wait" },
@@ -47,6 +48,9 @@ export function Analysis(props: {
     (async () => {
       try {
         setError(null);
+        if (!online && !(project.transcript && project.clips)) {
+          throw new Error("Sem internet. A transcrição e a IA precisam de conexão. Conecte-se e clique em “Tentar de novo”.");
+        }
         // 1) Webcam (local, rápido) — já mostra a prévia enquanto o resto roda
         if (project.frameUrl) {
           set("detect", { status: "done" });
@@ -93,6 +97,8 @@ export function Analysis(props: {
       } catch (e) {
         if (cancelled) return;
         if (e instanceof ApiError && e.code === "sem_creditos") setError("Seus créditos de IA acabaram. Escolha um plano para continuar.");
+        else if (e instanceof TypeError || /failed to fetch|network/i.test(String(e)))
+          setError("A conexão com a internet caiu durante a análise. O que já foi feito está salvo: conecte-se e clique em “Tentar de novo”.");
         else setError(e instanceof Error ? e.message : String(e));
         setSteps((prev) => {
           const next = { ...prev };

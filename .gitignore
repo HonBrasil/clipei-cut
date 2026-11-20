@@ -20,3 +20,5 @@ supabase/.branches/
 
 .DS_Store
 Thumbs.db
+app/release/
+app/no-updater.json

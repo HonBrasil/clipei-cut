@@ -9,6 +9,9 @@ import { Analysis } from "./screens/Analysis";
 import { Clips } from "./screens/Clips";
 import { Library } from "./screens/Library";
 import { saveProject } from "./lib/projects";
+import { useOnline } from "./lib/online";
+import { UpdateDialog } from "./components/UpdateDialog";
+import { OfflineBanner } from "./components/OfflineBanner";
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -16,6 +19,7 @@ export function App() {
   const [screen, setScreen] = useState<Screen>("home");
   const [project, setProject] = useState<Project | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
+  const online = useOnline();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -44,7 +48,13 @@ export function App() {
   const update = useCallback((fn: (p: Project) => Project) => setProject((p) => (p ? fn(p) : p)), []);
 
   if (!ready) return null;
-  if (!session) return <Login />;
+  if (!session)
+    return (
+      <>
+        <Login online={online} />
+        <UpdateDialog online={online} />
+      </>
+    );
 
   return (
     <div className="shell">
@@ -55,8 +65,10 @@ export function App() {
         onLogout={() => supabase.auth.signOut()}
       />
       <main className="main">
+        {!online && <OfflineBanner />}
         {screen === "home" && (
           <Home
+            online={online}
             credits={credits}
             onStart={(p) => {
               setProject(p);
@@ -76,6 +88,7 @@ export function App() {
         {screen === "analysis" && project && (
           <Analysis
             project={project}
+            online={online}
             onChange={update}
             onCredits={setCredits}
             onBack={() => setScreen(project.transcript ? "library" : "home")}
@@ -84,6 +97,7 @@ export function App() {
         )}
         {screen === "clips" && project && <Clips project={project} onChange={update} onBack={() => setScreen("analysis")} />}
       </main>
+      <UpdateDialog online={online} />
     </div>
   );
 }

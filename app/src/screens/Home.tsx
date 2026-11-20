@@ -14,7 +14,7 @@ const DURATIONS: Array<{ label: string; prefs: Prefs }> = [
   { label: "60–90 s", prefs: { minSec: 60, maxSec: 90 } },
 ];
 
-export function Home({ credits, onStart }: { credits: number | null; onStart: (p: Project) => void }) {
+export function Home({ credits, online, onStart }: { credits: number | null; online: boolean; onStart: (p: Project) => void }) {
   const [dur, setDur] = useState(1);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -24,6 +24,10 @@ export function Home({ credits, onStart }: { credits: number | null; onStart: (p
     const ext = path.split(".").pop()?.toLowerCase() ?? "";
     if (!VIDEO_EXT.includes(ext)) {
       setError("Esse arquivo não parece um vídeo. Use MP4, MKV, MOV, FLV ou WEBM.");
+      return;
+    }
+    if (!online) {
+      setError("Sem internet. Conecte-se para analisar um vídeo novo. Seus projetos já analisados continuam em Meus clipes.");
       return;
     }
     setBusy(true);
@@ -61,7 +65,7 @@ export function Home({ credits, onStart }: { credits: number | null; onStart: (p
       .then((u) => (unlisten = u));
     return () => unlisten?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dur, credits]);
+  }, [dur, credits, online]);
 
   async function pick() {
     const selected = await open({ multiple: false, filters: [{ name: "Vídeos", extensions: VIDEO_EXT }] });
@@ -108,6 +112,20 @@ export function Home({ credits, onStart }: { credits: number | null; onStart: (p
           ))}
         </div>
         <span className="muted small">A legenda em português é gerada automaticamente. Só o áudio vai para a IA.</span>
+      </section>
+
+      <section className="card" aria-labelledby="net" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <h2 id="net" className="sub" style={{ fontSize: 16 }}>
+          O que precisa de internet
+        </h2>
+        <div className="netinfo">
+          <span>
+            <Icon name="wifi" size={15} color="#b9a3ff" /> Precisa: entrar na conta, transcrever e a IA escolher os clipes
+          </span>
+          <span>
+            <Icon name="check" size={15} color="#4ade80" /> Funciona offline: detectar a webcam, assistir e exportar clipes já analisados
+          </span>
+        </div>
       </section>
     </>
   );

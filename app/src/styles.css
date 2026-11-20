@@ -162,3 +162,12 @@ h2.sub { margin: 0; font-family: "Space Grotesk", "Segoe UI", sans-serif; font-s
 .project .thumb .len { position: absolute; right: 10px; bottom: 10px; padding: 3px 8px; border-radius: 6px; background: rgba(10, 10, 13, 0.8); font-size: 12px; }
 .project .info { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .project .info b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.modalBack { position: fixed; inset: 0; background: rgba(5, 5, 8, 0.72); display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 50; }
+.modal { width: 100%; max-width: 520px; display: flex; flex-direction: column; gap: 16px; box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6); }
+.modal .notes { max-height: 220px; overflow-y: auto; white-space: pre-line; font-size: 14px; line-height: 1.55; color: var(--soft); padding: 12px 14px; border-radius: 12px; background: var(--card2); border: 1px solid var(--line); }
+
+.offline { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 14px; background: #2a2210; border: 1px solid #6b5418; color: #ffe2a3; font-size: 14px; line-height: 1.5; }
+.offline b { color: #fff1cc; }
+.netinfo { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--muted); }
+.netinfo span { display: inline-flex; align-items: center; gap: 6px; }

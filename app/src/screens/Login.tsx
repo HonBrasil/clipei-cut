@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { supabase, supabaseConfigured } from "../lib/supabase";
 
-export function Login() {
+export function Login({ online }: { online: boolean }) {
   const [mode, setMode] = useState<"in" | "up">("in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,6 +38,12 @@ export function Login() {
           </p>
         </div>
 
+        {!online && (
+          <div className="offline" role="status">
+            Sem internet. Para entrar na sua conta é preciso estar conectado.
+          </div>
+        )}
+
         {!supabaseConfigured && (
           <div className="error">
             O app ainda não foi ligado ao servidor. Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY (veja o README).
@@ -64,7 +70,7 @@ export function Login() {
 
         {msg && <div className={msg.kind === "error" ? "error" : "note"}>{msg.text}</div>}
 
-        <button className="btn primary big" type="submit" disabled={busy || !supabaseConfigured}>
+        <button className="btn primary big" type="submit" disabled={busy || !supabaseConfigured || !online}>
           {busy ? "Aguarde…" : mode === "in" ? "Entrar" : "Criar conta grátis"}
         </button>
         <p className="muted small" style={{ textAlign: "center", margin: 0 }}>
