@@ -1,9 +1,7 @@
 name: Publicar servidor (Supabase)
 
+# Manual: o servidor atual já foi publicado direto pelo Claude.
 on:
-  push:
-    branches: [main]
-    paths: ["supabase/**"]
   workflow_dispatch:
 
 jobs:

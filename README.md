@@ -33,7 +33,13 @@ As chaves das IAs ficam só no servidor e nunca dentro do app.
 | `supabase/functions/` | `transcribe` (Groq) e `analyze` (Claude) |
 | `.github/workflows/` | Gera o instalador do Windows e publica o servidor |
 
-## Configuração (uma vez só)
+## Servidor atual
+- Projeto Supabase: `clipei-cut` (São Paulo), ref `cnnouuyaduqwdrhkxpkx`.
+- Banco, regras de segurança e as funções `transcribe` e `analyze` já estão publicados.
+- As chaves `GROQ_API_KEY` e `ANTHROPIC_API_KEY` ficam em **Supabase › Edge Functions › Secrets**.
+- O endereço e a chave pública usados pelo app estão em `app/.env.production`.
+
+## Configuração do zero (só se for recriar o servidor)
 
 ### 1. Supabase
 1. Crie um projeto em [supabase.com](https://supabase.com) (região São Paulo).

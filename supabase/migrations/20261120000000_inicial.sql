@@ -24,13 +24,11 @@ alter table public.usage_events enable row level security;
 
 -- Cada usuário só enxerga os próprios dados. Ninguém altera créditos pelo app:
 -- só as Edge Functions (com a chave de serviço) mexem no saldo.
-drop policy if exists "perfil proprio" on public.profiles;
 create policy "perfil proprio" on public.profiles
-  for select using (auth.uid() = id);
+  for select using ((select auth.uid()) = id);
 
-drop policy if exists "uso proprio" on public.usage_events;
 create policy "uso proprio" on public.usage_events
-  for select using (auth.uid() = user_id);
+  for select using ((select auth.uid()) = user_id);
 
 -- Cria o perfil automaticamente quando alguém se cadastra
 create or replace function public.handle_new_user()
@@ -46,7 +44,6 @@ begin
 end;
 $$;
 
-drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
@@ -78,3 +75,4 @@ end;
 $$;
 
 revoke all on function public.consume_credits(uuid, integer, text, text) from public, anon, authenticated;
+revoke all on function public.handle_new_user() from public, anon, authenticated;

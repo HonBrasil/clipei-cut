@@ -49,10 +49,8 @@ jobs:
       - name: Baixar modelo de detecção de rosto
         run: npm run assets
 
+      # O endereço do servidor e a chave pública ficam em app/.env.production
       - name: Compilar o app
-        env:
-          VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
         run: npx tauri build
 
       - name: Guardar o instalador
