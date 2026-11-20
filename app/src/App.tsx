@@ -8,6 +8,9 @@ import { Home } from "./screens/Home";
 import { Analysis } from "./screens/Analysis";
 import { Clips } from "./screens/Clips";
 import { Library } from "./screens/Library";
+import { Captions } from "./screens/Captions";
+import { Exports } from "./screens/Exports";
+import { Config } from "./screens/Config";
 import { saveProject } from "./lib/projects";
 import { useOnline } from "./lib/online";
 import { UpdateDialog } from "./components/UpdateDialog";
@@ -61,7 +64,10 @@ export function App() {
       <Sidebar
         screen={screen}
         credits={credits}
-        onNavigate={setScreen}
+        onNavigate={(s) => {
+          setScreen(s);
+          if (s === "settings") refreshCredits();
+        }}
         onLogout={() => supabase.auth.signOut()}
       />
       <main className="main">
@@ -74,6 +80,17 @@ export function App() {
               setProject(p);
               setScreen("analysis");
             }}
+          />
+        )}
+        {screen === "captions" && <Captions />}
+        {screen === "exports" && <Exports />}
+        {screen === "settings" && (
+          <Config
+            email={session.user.email ?? ""}
+            credits={credits}
+            online={online}
+            onLogout={() => supabase.auth.signOut()}
+            onOpenExports={() => setScreen("exports")}
           />
         )}
         {screen === "library" && (

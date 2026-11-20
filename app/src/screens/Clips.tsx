@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { join, videoDir } from "@tauri-apps/api/path";
-import { mkdir, writeTextFile } from "@tauri-apps/plugin-fs";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { join } from "@tauri-apps/api/path";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { Icon } from "../components/Icon";
 import { detectEncoder, encoderLabel, exportClip, workDir, type Encoder } from "../lib/ffmpeg";
-import { buildAss } from "../lib/ass";
+import { buildAss, censorIntervals } from "../lib/ass";
+import { ensureDir, prepareFonts, revealPath } from "../lib/native";
+import { allModels, exportDirOf, useSettings, type FileNaming } from "../lib/settings";
 import { wordsForClip } from "../lib/ai";
 import { fmtTime, slugify } from "../lib/format";
 import type { Clip, Project } from "../lib/types";
@@ -14,18 +15,21 @@ type ExportState = { running: boolean; current: number; total: number; pct: numb
 
 export function Clips(props: { project: Project; onChange: (fn: (p: Project) => Project) => void; onBack: () => void }) {
   const { project, onChange, onBack } = props;
+  const { settings, update } = useSettings();
+  const models = allModels(settings);
+  const [modelId, setModelId] = useState(settings.captionModelId);
   const clips = project.clips ?? [];
   const [selected, setSelected] = useState<Set<string>>(() => new Set(clips.filter((c) => c.score >= 75).map((c) => c.id)));
   const [playing, setPlaying] = useState<Clip | null>(clips[0] ?? null);
-  const [captions, setCaptions] = useState(true);
+  const [captions, setCaptions] = useState(Boolean(project.transcript));
   const [encoder, setEncoder] = useState<Encoder | null>(null);
   const [exp, setExp] = useState<ExportState>({ running: false, current: 0, total: 0, pct: 0, done: [] });
   const videoRef = useRef<HTMLVideoElement>(null);
   const src = useMemo(() => convertFileSrc(project.video.path), [project.video.path]);
 
   useEffect(() => {
-    detectEncoder().then(setEncoder).catch(() => setEncoder("libx264"));
-  }, []);
+    detectEncoder(settings.useGpu).then(setEncoder).catch(() => setEncoder("libx264"));
+  }, [settings.useGpu]);
 
   // Toca só o trecho do clipe escolhido
   useEffect(() => {
@@ -65,21 +69,23 @@ export function Clips(props: { project: Project; onChange: (fn: (p: Project) => 
     setExp({ running: true, current: 0, total: list.length, pct: 0, done: [] });
     try {
       const base = project.video.name.replace(/\.[^.]+$/, "");
-      const outDir = await join(await videoDir(), "Clipei Cut", slugify(base));
-      await mkdir(outDir, { recursive: true });
+      const outDir = await join(await exportDirOf(settings), slugify(base));
+      await ensureDir(outDir);
       const wdir = await workDir("export");
+      await prepareFonts(await join(wdir, "fonts"));
+      const model = models.find((m) => m.id === modelId) ?? models[0];
       const done: string[] = [];
       for (let i = 0; i < list.length; i++) {
         const clip = list[i];
         setExp((e) => ({ ...e, current: i + 1, pct: 0 }));
+        const words = project.transcript ? wordsForClip(project.transcript.words, clip) : [];
         let assFile: string | null = null;
         if (captions && project.transcript) {
           assFile = `clip_${i}.ass`;
-          const ass = buildAss(wordsForClip(project.transcript.words, clip), clip.end - clip.start, project.layout ?? "cam-top", Boolean(project.webcam));
+          const ass = buildAss(words, clip.end - clip.start, project.layout ?? "cam-top", Boolean(project.webcam), model, settings.censor);
           await writeTextFile(await join(wdir, assFile), ass);
         }
-        const fmt = project.layout === "wide" ? "16x9" : "9x16";
-        const outPath = await join(outDir, `${String(i + 1).padStart(2, "0")}-${slugify(clip.title)}_${fmt}.mp4`);
+        const outPath = await join(outDir, fileName(settings.fileNaming, i, clip.title, base, project.layout === "wide" ? "16x9" : "9x16"));
         await exportClip({
           video: project.video,
           clip,
@@ -89,6 +95,8 @@ export function Clips(props: { project: Project; onChange: (fn: (p: Project) => 
           assFile,
           outPath,
           encoder,
+          quality: settings.quality,
+          beeps: settings.censor ? censorIntervals(words) : [],
           onProgress: (pct) => setExp((e) => ({ ...e, pct })),
         });
         done.push(outPath);
@@ -96,6 +104,7 @@ export function Clips(props: { project: Project; onChange: (fn: (p: Project) => 
       }
       setExp((e) => ({ ...e, running: false }));
       onChange((p) => ({ ...p, exported: Array.from(new Set([...(p.exported ?? []), ...done])) }));
+      if (settings.openFolderWhenDone && done[0]) revealPath(done[0]).catch(() => {});
     } catch (err) {
       setExp((e) => ({ ...e, running: false, error: err instanceof Error ? err.message : String(err) }));
     }
@@ -120,8 +129,18 @@ export function Clips(props: { project: Project; onChange: (fn: (p: Project) => 
           <b style={{ color: "var(--text)" }}>{selected.size} selecionados</b> · clique no quadrado para marcar · clique no título para editar
         </span>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+          <label className="small" style={{ display: "flex", gap: 8, alignItems: "center", color: "var(--soft)" }} title={project.transcript ? "" : "Este projeto não tem mais a transcrição salva"}>
+            <input type="checkbox" checked={captions} disabled={!project.transcript} onChange={(e) => setCaptions(e.target.checked)} /> Legenda
+          </label>
+          <select className="input" style={{ height: 44 }} value={modelId} disabled={!captions} aria-label="Modelo de legenda" onChange={(e) => setModelId(e.target.value)}>
+            {models.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
           <label className="small" style={{ display: "flex", gap: 8, alignItems: "center", color: "var(--soft)" }}>
-            <input type="checkbox" checked={captions} onChange={(e) => setCaptions(e.target.checked)} /> Legenda animada
+            <input type="checkbox" checked={settings.censor} onChange={(e) => update({ censor: e.target.checked })} /> Bipar palavrões
           </label>
           <button className="btn primary" disabled={!selected.size || exp.running || !encoder} onClick={runExport}>
             <Icon name="download" size={16} /> Exportar {selected.size || ""}
@@ -149,8 +168,8 @@ export function Clips(props: { project: Project; onChange: (fn: (p: Project) => 
             <div className="error">Não consegui exportar: {exp.error}</div>
           ) : (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
-              <span className="badge ok">{exp.done.length} clipes salvos na pasta Vídeos › Clipei Cut</span>
-              <button className="btn primary" onClick={() => revealItemInDir(exp.done[0])}>
+              <span className="badge ok">{exp.done.length} clipes salvos na pasta de exportação</span>
+              <button className="btn primary" onClick={() => revealPath(exp.done[0])}>
                 <Icon name="folder" size={16} /> Abrir pasta
               </button>
             </div>
@@ -202,4 +221,11 @@ export function Clips(props: { project: Project; onChange: (fn: (p: Project) => 
       </div>
     </>
   );
+}
+
+function fileName(naming: FileNaming, i: number, title: string, project: string, fmt: string): string {
+  const n = String(i + 1).padStart(2, "0");
+  if (naming === "data-titulo") return `${new Date().toISOString().slice(0, 10)}_${slugify(title)}_${fmt}.mp4`;
+  if (naming === "projeto-numero") return `${slugify(project)}-${n}_${fmt}.mp4`;
+  return `${n}-${slugify(title)}_${fmt}.mp4`;
 }

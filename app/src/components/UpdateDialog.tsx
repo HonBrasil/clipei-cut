@@ -3,6 +3,7 @@ import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { getVersion } from "@tauri-apps/api/app";
 import { Icon } from "./Icon";
+import { useSettings } from "../lib/settings";
 
 const SNOOZE_KEY = "clipei-update-snooze";
 
@@ -16,17 +17,19 @@ export function UpdateDialog({ online }: { online: boolean }) {
   const [state, setState] = useState<"idle" | "downloading" | "installing" | "error">("idle");
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
+  const { settings, loaded } = useSettings();
 
   useEffect(() => {
-    if (!online) return;
+    if (!online || !loaded) return;
     let alive = true;
-    const run = async () => {
+    const run = async (manual = false) => {
+      if (!manual && !settings.autoUpdate) return;
       try {
         const u = await check();
         if (!alive || !u) return;
         // "Depois" esconde a mesma versão por 12 horas
         const snooze = JSON.parse(localStorage.getItem(SNOOZE_KEY) ?? "null") as { v: string; until: number } | null;
-        if (snooze && snooze.v === u.version && Date.now() < snooze.until) return;
+        if (!manual && snooze && snooze.v === u.version && Date.now() < snooze.until) return;
         setCurrent(await getVersion());
         setUpdate(u);
       } catch (e) {
@@ -34,12 +37,15 @@ export function UpdateDialog({ online }: { online: boolean }) {
       }
     };
     run();
-    const t = setInterval(run, 6 * 60 * 60 * 1000);
+    const t = setInterval(() => run(), 6 * 60 * 60 * 1000);
+    const manual = () => run(true);
+    window.addEventListener("clipei-check-update", manual);
     return () => {
       alive = false;
       clearInterval(t);
+      window.removeEventListener("clipei-check-update", manual);
     };
-  }, [online]);
+  }, [online, loaded, settings.autoUpdate]);
 
   if (!update) return null;
 

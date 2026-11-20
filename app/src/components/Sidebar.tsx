@@ -3,7 +3,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { Icon } from "./Icon";
 import { fmtHours } from "../lib/format";
 
-export type Screen = "home" | "library" | "analysis" | "clips";
+export type Screen = "home" | "library" | "analysis" | "clips" | "captions" | "exports" | "settings";
 
 export function Sidebar(props: {
   screen: Screen;
@@ -30,15 +30,17 @@ export function Sidebar(props: {
       <button className={`nav-item ${inLib ? "active" : ""}`} onClick={() => onNavigate("library")} aria-current={inLib ? "page" : undefined}>
         <Icon name="grid" /> <span className="label">Meus clipes</span>
       </button>
-      <button className="nav-item" disabled>
-        <Icon name="text" /> <span className="label">Modelos de legenda</span> <span className="soon">em breve</span>
-      </button>
-      <button className="nav-item" disabled>
-        <Icon name="folder" /> <span className="label">Pasta de exportação</span> <span className="soon">em breve</span>
-      </button>
-      <button className="nav-item" disabled>
-        <Icon name="gear" /> <span className="label">Configurações</span> <span className="soon">em breve</span>
-      </button>
+      {(
+        [
+          ["captions", "text", "Modelos de legenda"],
+          ["exports", "folder", "Pasta de exportação"],
+          ["settings", "gear", "Configurações"],
+        ] as Array<[Screen, string, string]>
+      ).map(([id, icon, label]) => (
+        <button key={id} className={`nav-item ${screen === id ? "active" : ""}`} onClick={() => onNavigate(id)} aria-current={screen === id ? "page" : undefined}>
+          <Icon name={icon} /> <span className="label">{label}</span>
+        </button>
+      ))}
 
       <div className="credits">
         <div className="row">

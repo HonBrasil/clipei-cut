@@ -81,7 +81,7 @@ export async function transcribe(
 }
 
 /** Pede à IA os melhores momentos, em janelas de ~40 min para vídeos longos. */
-export async function findClips(t: Transcript, prefs: Prefs, onProgress?: (p: number) => void): Promise<Clip[]> {
+export async function findClips(t: Transcript, prefs: Prefs, onProgress?: (p: number) => void, perHour = 8): Promise<Clip[]> {
   const WINDOW = 40 * 60;
   const windows: Segment[][] = [];
   let cur: Segment[] = [];
@@ -101,7 +101,7 @@ export async function findClips(t: Transcript, prefs: Prefs, onProgress?: (p: nu
   for (let i = 0; i < windows.length; i++) {
     const w = windows[i];
     const span = w[w.length - 1].end - w[0].start;
-    const maxClips = Math.max(3, Math.round((span / 3600) * 8));
+    const maxClips = Math.min(20, Math.max(3, Math.round((span / 3600) * perHour)));
     const data = await withRetry(async () => {
       const res = await fetch(fnUrl("analyze"), {
         method: "POST",

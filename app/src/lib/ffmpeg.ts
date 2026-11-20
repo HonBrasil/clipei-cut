@@ -3,6 +3,7 @@ import { Command } from "@tauri-apps/plugin-shell";
 import { readTextFile, mkdir, remove, exists } from "@tauri-apps/plugin-fs";
 import { appCacheDir, join } from "@tauri-apps/api/path";
 import type { Clip, Layout, Rect, VideoInfo } from "./types";
+import type { Quality } from "./settings";
 
 type RunResult = { code: number | null; stdout: string; stderr: string };
 
@@ -133,7 +134,9 @@ export type Encoder = "h264_nvenc" | "h264_qsv" | "h264_amf" | "libx264";
 const ENCODER_KEY = "clipei-encoder";
 
 /** Descobre a placa de vídeo uma vez e guarda o resultado. */
-export async function detectEncoder(): Promise<Encoder> {
+export async function detectEncoder(useGpu = true, force = false): Promise<Encoder> {
+  if (!useGpu) return "libx264";
+  if (force) localStorage.removeItem(ENCODER_KEY);
   const cached = localStorage.getItem(ENCODER_KEY) as Encoder | null;
   if (cached) return cached;
   for (const enc of ["h264_nvenc", "h264_qsv", "h264_amf"] as Encoder[]) {
@@ -170,10 +173,19 @@ function encoderArgs(e: Encoder): string[] {
 const even = (n: number) => Math.max(2, Math.floor(n / 2) * 2);
 
 /** Monta o filtro de imagem para cada layout. Saída 1080x1920 (vertical) ou 1920x1080. */
-export function buildFilter(video: VideoInfo, layout: Layout, webcam: Rect | null | undefined, assFile: string | null): string {
+export function buildFilter(
+  video: VideoInfo,
+  layout: Layout,
+  webcam: Rect | null | undefined,
+  assFile: string | null,
+  quality: Quality = "1080p60",
+): string {
   const W = video.width;
   const H = video.height;
-  const subs = assFile ? `,subtitles=${assFile}` : "";
+  // Legenda (fontes copiadas para a pasta "fonts" ao lado do .ass) + qualidade final
+  const fps = quality === "1080p60" ? (video.fps > 60.5 ? ",fps=60" : "") : video.fps > 30.5 ? ",fps=30" : "";
+  const down = quality === "720p30" ? (layout === "wide" ? ",scale=1280:720" : ",scale=720:1280") : "";
+  const subs = (assFile ? `,subtitles=${assFile}:fontsdir=fonts` : "") + down + fps;
 
   if (layout === "wide") {
     return `[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1${subs}[v]`;
@@ -210,16 +222,23 @@ export async function exportClip(opts: {
   assFile: string | null;
   outPath: string;
   encoder: Encoder;
+  quality?: Quality;
+  beeps?: Array<[number, number]>; // trechos para bipar (relativos ao clipe)
   onProgress?: (p: number) => void;
 }): Promise<void> {
   const { video, clip, layout, webcam, assFile, outPath, encoder, onProgress } = opts;
   const len = clip.end - clip.start;
-  const filter = buildFilter(video, layout, webcam, assFile);
+  let filter = buildFilter(video, layout, webcam, assFile, opts.quality);
+  let audioMap = ["-map", "0:a:0?"];
+  if (video.hasAudio && opts.beeps?.length) {
+    filter += ";" + beepFilter(opts.beeps, len);
+    audioMap = ["-map", "[a]"];
+  }
   const args = [
     "-y",
     "-ss", clip.start.toFixed(3), "-t", len.toFixed(3), "-i", video.path,
     "-filter_complex", filter, "-map", "[v]",
-    ...(video.hasAudio ? ["-map", "0:a:0?", "-c:a", "aac", "-b:a", "160k"] : []),
+    ...(video.hasAudio ? [...audioMap, "-c:a", "aac", "-b:a", "160k"] : []),
     ...encoderArgs(encoder),
     "-movflags", "+faststart",
     outPath,
@@ -235,4 +254,14 @@ export async function exportClip(opts: {
     }
     throw err;
   }
+}
+
+/** Silencia os palavrões e coloca um bip no lugar. */
+export function beepFilter(beeps: Array<[number, number]>, len: number): string {
+  const expr = beeps.map(([a, b]) => `between(t,${a.toFixed(2)},${b.toFixed(2)})`).join("+");
+  return (
+    `[0:a:0]volume=0:enable='${expr}'[am];` +
+    `sine=frequency=1000:sample_rate=48000:duration=${len.toFixed(2)},volume=0.18,volume=0:enable='not(${expr})'[bp];` +
+    `[am][bp]amix=inputs=2:duration=first:normalize=0[a]`
+  );
 }

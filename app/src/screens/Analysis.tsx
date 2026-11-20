@@ -5,6 +5,7 @@ import { detectWebcam } from "../lib/detect";
 import { ApiError, findClips, transcribe } from "../lib/ai";
 import { fmtTime } from "../lib/format";
 import type { Layout, Project, Rect } from "../lib/types";
+import { useSettings } from "../lib/settings";
 
 type StepId = "detect" | "audio" | "transcribe" | "ai";
 type StepState = { status: "wait" | "doing" | "done"; pct?: number };
@@ -25,6 +26,7 @@ export function Analysis(props: {
   onDone: () => void;
 }) {
   const { project, online, onChange, onCredits, onBack, onDone } = props;
+  const { settings } = useSettings();
   const { video } = project;
   const [steps, setSteps] = useState<Record<StepId, StepState>>({
     detect: { status: "wait" },
@@ -80,7 +82,7 @@ export function Analysis(props: {
           set("audio", { status: "done" });
 
           set("transcribe", { status: "doing", pct: 0 });
-          transcript = await transcribe(chunks, "pt", (pct) => set("transcribe", { status: "doing", pct }), onCredits);
+          transcript = await transcribe(chunks, settings.language, (pct) => set("transcribe", { status: "doing", pct }), onCredits);
           if (cancelled) return;
           const saved = transcript;
           onChange((p) => ({ ...p, transcript: saved }));
@@ -90,7 +92,8 @@ export function Analysis(props: {
 
         // 4) IA escolhe os clipes
         set("ai", { status: "doing", pct: 0 });
-        const clips = await findClips(transcript, project.prefs, (pct) => set("ai", { status: "doing", pct }));
+        const perHour = { poucos: 4, equilibrado: 8, muitos: 14 }[settings.clipsAmount];
+        const clips = await findClips(transcript, project.prefs, (pct) => set("ai", { status: "doing", pct }), perHour);
         if (cancelled) return;
         set("ai", { status: "done" });
         onChange((p) => ({ ...p, clips }));
