@@ -1,12 +1,11 @@
 // Termos de uso e Política de privacidade do Clipei Cut.
-// Os campos entre [colchetes] precisam ser preenchidos antes do lançamento.
 // Ao mudar o texto, troque a versão aqui e em supabase/functions/accept-terms.
 export const TERMS_VERSION = "2026-11-21";
 
 export type LegalDoc = { title: string; updated: string; sections: Array<{ h: string; p: string[] }> };
 
-const EMPRESA = "Clipei Studio Digital, responsável [NOME COMPLETO OU RAZÃO SOCIAL], inscrito no [CPF/CNPJ] [NÚMERO], com sede em [CIDADE/UF]";
-const CONTATO = "WhatsApp +55 62 99868-9137 ou e-mail [E-MAIL DE CONTATO]";
+const EMPRESA = "Clipei Studio Digital";
+const CONTATO = "WhatsApp +55 62 99868-9137";
 
 export const TERMS: LegalDoc = {
   title: "Termos de uso",

@@ -1,6 +1,7 @@
 name: Configurar login e e-mails (Supabase)
 
-# Liga a confirmação de e-mail e aplica os modelos de e-mail com código de 6 dígitos.
+# Aplica os modelos de e-mail com código de 6 dígitos (recuperação de senha e confirmação).
+# A confirmação de e-mail no cadastro fica DESLIGADA por enquanto (mailer_autoconfirm: true).
 # Manual: rodar só depois que a versão do app com o código estiver publicada.
 on:
   workflow_dispatch:
@@ -19,7 +20,7 @@ jobs:
             --rawfile conf supabase/auth/confirmacao.html \
             --rawfile rec supabase/auth/recuperacao.html \
             '{
-              mailer_autoconfirm: false,
+              mailer_autoconfirm: true,
               mailer_otp_exp: 3600,
               mailer_otp_length: 6,
               password_min_length: 6,

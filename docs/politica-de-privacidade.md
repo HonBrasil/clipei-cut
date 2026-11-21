@@ -2,7 +2,7 @@
 *Última atualização: 21 de novembro de 2026*
 
 ## 1. Quem cuida dos seus dados
-O controlador dos dados é Clipei Studio Digital, responsável [NOME COMPLETO OU RAZÃO SOCIAL], inscrito no [CPF/CNPJ] [NÚMERO], com sede em [CIDADE/UF]. Contato para assuntos de privacidade (encarregado/DPO): WhatsApp +55 62 99868-9137 ou e-mail [E-MAIL DE CONTATO].
+O controlador dos dados é Clipei Studio Digital. Contato para assuntos de privacidade (encarregado/DPO): WhatsApp +55 62 99868-9137.
 
 Esta Política explica quais dados o Clipei Cut usa, por que, com quem compartilha e quais são os seus direitos pela Lei Geral de Proteção de Dados (LGPD, Lei 13.709/2018).
 

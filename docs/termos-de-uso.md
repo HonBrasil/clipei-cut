@@ -2,7 +2,7 @@
 *Última atualização: 21 de novembro de 2026*
 
 ## 1. Quem somos e o que é o Clipei Cut
-O Clipei Cut é um aplicativo para Windows oferecido por Clipei Studio Digital, responsável [NOME COMPLETO OU RAZÃO SOCIAL], inscrito no [CPF/CNPJ] [NÚMERO], com sede em [CIDADE/UF] ("Clipei", "nós").
+O Clipei Cut é um aplicativo para Windows oferecido por Clipei Studio Digital ("Clipei", "nós").
 
 O aplicativo usa inteligência artificial para encontrar os melhores momentos de vídeos (lives, gameplays, podcasts) e gerar clipes curtos com legenda. O vídeo é processado no seu computador; apenas o áudio é enviado aos nossos servidores para transcrição e análise.
 
@@ -72,5 +72,5 @@ Podemos atualizar estes Termos. Quando a mudança for relevante, pediremos que v
 
 Estes Termos seguem as leis do Brasil. Fica eleito o foro do domicílio do consumidor para resolver qualquer questão.
 
-Contato: WhatsApp +55 62 99868-9137 ou e-mail [E-MAIL DE CONTATO].
+Contato: WhatsApp +55 62 99868-9137.
 
