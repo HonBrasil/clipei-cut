@@ -3,7 +3,10 @@ import { getVersion } from "@tauri-apps/api/app";
 import { check } from "@tauri-apps/plugin-updater";
 import { Icon } from "../components/Icon";
 import { Toggle } from "../components/Toggle";
-import { cancelSubscription, PLAN_INFO, type Account } from "../lib/account";
+import { cancelSubscription, deleteAccount, PLAN_INFO, type Account } from "../lib/account";
+import { deleteProject } from "../lib/projects";
+import { LegalModal } from "../components/LegalModal";
+import { supabase } from "../lib/supabase";
 import { openSupport } from "../lib/support";
 import { detectEncoder, encoderLabel, type Encoder } from "../lib/ffmpeg";
 import { fmtHours } from "../lib/format";
@@ -24,6 +27,22 @@ export function Config(props: {
   const credits = account ? account.totalSeconds : null;
   const [cancelState, setCancelState] = useState<"idle" | "confirm" | "busy" | "done">("idle");
   const [cancelMsg, setCancelMsg] = useState<string | null>(null);
+  const [legal, setLegal] = useState<null | "termos" | "privacidade">(null);
+  const [del, setDel] = useState({ open: false, text: "", wipeLocal: true, busy: false, error: "" });
+
+  async function doDelete() {
+    setDel((d) => ({ ...d, busy: true, error: "" }));
+    try {
+      await deleteAccount();
+      if (del.wipeLocal) {
+        for (const p of await listProjects()) await deleteProject(p.id).catch(() => {});
+        await clearTemp().catch(() => {});
+      }
+      await supabase.auth.signOut();
+    } catch (e) {
+      setDel((d) => ({ ...d, busy: false, error: e instanceof Error ? e.message : String(e) }));
+    }
+  }
 
   async function doCancel() {
     setCancelState("busy");
@@ -319,7 +338,49 @@ export function Config(props: {
             </div>
           </div>
         </section>
+        <section className="card" aria-labelledby="c-conta-x" style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 12, borderColor: "#3a1a1e" }}>
+          <h2 id="c-conta-x" className="sub" style={{ fontSize: 18 }}>
+            Termos e conta
+          </h2>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button className="btn" onClick={() => setLegal("termos")}>
+              Termos de uso
+            </button>
+            <button className="btn" onClick={() => setLegal("privacidade")}>
+              Política de privacidade
+            </button>
+            <button className="btn" style={{ marginLeft: "auto", borderColor: "#6b1d24", color: "var(--red-text)" }} onClick={() => setDel((d) => ({ ...d, open: !d.open }))}>
+              Excluir minha conta
+            </button>
+          </div>
+          {del.open && (
+            <div className="error" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <b>Excluir a conta é definitivo.</b>
+              <span>
+                Sua assinatura será cancelada, as horas restantes serão perdidas e seus dados pessoais serão apagados do servidor. Os registros de pagamento ficam guardados sem o seu e-mail, por obrigação fiscal. Os clipes já exportados continuam na sua pasta.
+              </span>
+              <label className="acceptRow" style={{ color: "#ffd5d8" }}>
+                <input type="checkbox" checked={del.wipeLocal} onChange={(e) => setDel((d) => ({ ...d, wipeLocal: e.target.checked }))} />
+                <span>Apagar também os projetos e transcrições salvos neste computador</span>
+              </label>
+              <label className="field" style={{ gap: 6 }}>
+                <span style={{ fontSize: 13 }}>Para confirmar, digite EXCLUIR</span>
+                <input className="input" value={del.text} onChange={(e) => setDel((d) => ({ ...d, text: e.target.value }))} />
+              </label>
+              {del.error && <b>{del.error}</b>}
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button className="btn" style={{ background: "#e3121f", borderColor: "#e3121f", color: "#fff" }} disabled={del.text.trim().toUpperCase() !== "EXCLUIR" || del.busy} onClick={doDelete}>
+                  {del.busy ? "Excluindo…" : "Excluir minha conta para sempre"}
+                </button>
+                <button className="btn" onClick={() => setDel((d) => ({ ...d, open: false, text: "" }))}>
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
       </div>
+      {legal && <LegalModal initial={legal} onClose={() => setLegal(null)} />}
     </>
   );
 }

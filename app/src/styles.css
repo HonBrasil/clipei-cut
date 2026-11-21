@@ -241,3 +241,12 @@ select.input { padding-right: 10px; }
 .trim > span:last-child { grid-column: 1 / -1; }
 .trimBtns { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .trimBtns .btn { min-height: 38px; padding: 0 6px; font-size: 12px; }
+
+.modal.legal { max-width: 720px; max-height: 86vh; }
+.legalBody { overflow-y: auto; padding-right: 6px; display: flex; flex-direction: column; gap: 6px; }
+.legalBody h3 { margin: 14px 0 4px; font-size: 15px; }
+.legalBody p { margin: 0 0 8px; font-size: 14px; line-height: 1.6; color: var(--soft); }
+.codeInput { letter-spacing: 0.5em; font-size: 24px; text-align: center; font-weight: 700; }
+.check { accent-color: #e3121f; }
+.acceptRow { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--soft); line-height: 1.5; }
+.acceptRow input { width: 18px; height: 18px; margin-top: 1px; accent-color: #e3121f; flex: 0 0 auto; }

@@ -1,0 +1,39 @@
+name: Configurar login e e-mails (Supabase)
+
+# Liga a confirmação de e-mail e aplica os modelos de e-mail com código de 6 dígitos.
+# Manual: rodar só depois que a versão do app com o código estiver publicada.
+on:
+  workflow_dispatch:
+
+jobs:
+  config:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: cnnouuyaduqwdrhkxpkx
+    steps:
+      - uses: actions/checkout@v4
+      - name: Aplicar configuração
+        run: |
+          body=$(jq -n \
+            --rawfile conf supabase/auth/confirmacao.html \
+            --rawfile rec supabase/auth/recuperacao.html \
+            '{
+              mailer_autoconfirm: false,
+              mailer_otp_exp: 3600,
+              mailer_otp_length: 6,
+              password_min_length: 6,
+              site_url: "https://clipeistudiodigital.com.br",
+              mailer_subjects_confirmation: "Seu código do Clipei Cut",
+              mailer_templates_confirmation_content: $conf,
+              mailer_subjects_recovery: "Código para criar uma nova senha no Clipei Cut",
+              mailer_templates_recovery_content: $rec
+            }')
+          code=$(curl -s -o resp.json -w "%{http_code}" -X PATCH \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/config/auth" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "$body")
+          echo "HTTP $code"
+          if [ "$code" -ge 300 ]; then cat resp.json; exit 1; fi
+          jq '{mailer_autoconfirm, mailer_otp_length, mailer_subjects_confirmation, mailer_subjects_recovery}' resp.json

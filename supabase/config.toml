@@ -25,3 +25,9 @@ verify_jwt = true
 
 [functions.claim-trial]
 verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = true
+
+[functions.accept-terms]
+verify_jwt = true

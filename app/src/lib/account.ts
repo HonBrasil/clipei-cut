@@ -17,6 +17,7 @@ export type Account = {
   cycleStart: string;
   hasSubscription: boolean;
   trialClaimed: boolean;
+  termsVersion: string | null;
   totalSeconds: number;
 };
 
@@ -54,6 +55,7 @@ export async function fetchAccount(): Promise<Account | null> {
     cycleStart: r.cycle_start,
     hasSubscription: r.has_subscription,
     trialClaimed: Boolean(r.trial_claimed),
+    termsVersion: r.terms_version ?? null,
     totalSeconds: r.credits_seconds + r.extra_seconds,
   };
 }
@@ -100,4 +102,13 @@ export async function claimTrial(): Promise<TrialStatus> {
     console.warn("Teste grátis", e);
     return "erro";
   }
+}
+
+export async function acceptTerms(version: string): Promise<void> {
+  await callFn("accept-terms", { version });
+}
+
+/** Exclui a conta no servidor (cancela assinatura e apaga os dados pessoais). */
+export async function deleteAccount(): Promise<void> {
+  await callFn("delete-account", { confirm: "EXCLUIR" });
 }

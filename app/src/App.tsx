@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
-import { claimTrial, fetchAccount, type Account, type TrialStatus } from "./lib/account";
+import { acceptTerms, claimTrial, fetchAccount, type Account, type TrialStatus } from "./lib/account";
+import { TERMS_VERSION } from "./lib/legal";
+import { TermsGate } from "./components/TermsGate";
+import { PENDING_TERMS_KEY } from "./screens/Login";
 import { Plans } from "./screens/Plans";
 import { Admin } from "./screens/Admin";
 import type { Project } from "./lib/types";
@@ -27,6 +30,7 @@ export function App() {
   const [account, setAccount] = useState<Account | null>(null);
   const credits = account ? account.totalSeconds : null;
   const paid = Boolean(account && account.plan !== "free");
+
   const online = useOnline();
 
   useEffect(() => {
@@ -43,6 +47,20 @@ export function App() {
   }, []);
   // Saldo atualizado pela transcrição (sem esperar outra consulta)
   const setCredits = useCallback((n: number) => setAccount((a) => (a ? { ...a, totalSeconds: n } : a)), []);
+
+  // Quem marcou o aceite no cadastro: registra no servidor sem perguntar de novo
+  useEffect(() => {
+    if (!account || account.termsVersion === TERMS_VERSION) return;
+    if (localStorage.getItem(PENDING_TERMS_KEY) === TERMS_VERSION) {
+      acceptTerms(TERMS_VERSION)
+        .then(() => {
+          localStorage.removeItem(PENDING_TERMS_KEY);
+          refreshCredits();
+        })
+        .catch(() => {});
+    }
+  }, [account, refreshCredits]);
+  const needsTerms = Boolean(account && account.termsVersion !== TERMS_VERSION && localStorage.getItem(PENDING_TERMS_KEY) !== TERMS_VERSION);
 
   // Ao entrar: registra o computador e libera a hora de teste se ele ainda não usou
   const [trial, setTrial] = useState<TrialStatus | null>(null);
@@ -145,6 +163,7 @@ export function App() {
         {screen === "clips" && project && <Clips project={project} paid={paid} onChange={update} onBack={() => setScreen("analysis")} onPlans={() => setScreen("plans")} />}
       </main>
       <UpdateDialog online={online} />
+      {needsTerms && <TermsGate onAccepted={refreshCredits} onLogout={() => supabase.auth.signOut()} />}
     </div>
   );
 }
