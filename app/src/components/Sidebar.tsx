@@ -3,6 +3,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { Icon } from "./Icon";
 import { fmtHours } from "../lib/format";
 import { PLAN_INFO, type Account } from "../lib/account";
+import { openSupport } from "../lib/support";
 
 export type Screen = "home" | "library" | "analysis" | "clips" | "captions" | "exports" | "settings" | "plans";
 
@@ -44,6 +45,10 @@ export function Sidebar(props: {
           <Icon name={icon} /> <span className="label">{label}</span>
         </button>
       ))}
+
+      <button className="nav-item" onClick={() => openSupport()} title="Falar com o suporte no WhatsApp">
+        <Icon name="chat" color="#4ade80" /> <span className="label">Suporte (WhatsApp)</span>
+      </button>
 
       <div className="credits">
         <div className="row">

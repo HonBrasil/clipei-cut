@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { supabase, supabaseConfigured } from "../lib/supabase";
+import { openSupport } from "../lib/support";
 
 export function Login({ online }: { online: boolean }) {
   const [mode, setMode] = useState<"in" | "up">("in");
@@ -77,6 +78,12 @@ export function Login({ online }: { online: boolean }) {
           {mode === "in" ? "Ainda não tem conta?" : "Já tem conta?"}{" "}
           <button type="button" className="linkBtn" onClick={() => setMode(mode === "in" ? "up" : "in")}>
             {mode === "in" ? "Criar conta" : "Entrar"}
+          </button>
+        </p>
+        <p className="muted small" style={{ textAlign: "center", margin: 0 }}>
+          Problemas para entrar?{" "}
+          <button type="button" className="linkBtn" onClick={() => openSupport("Estou com problema para entrar na conta.")}>
+            Fale com o suporte no WhatsApp
           </button>
         </p>
       </form>

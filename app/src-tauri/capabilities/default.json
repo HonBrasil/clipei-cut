@@ -172,6 +172,15 @@
         },
         {
           "url": "https://*.mercadolibre.com/*"
+        },
+        {
+          "url": "https://wa.me/*"
+        },
+        {
+          "url": "https://api.whatsapp.com/*"
+        },
+        {
+          "url": "https://web.whatsapp.com/*"
         }
       ]
     }

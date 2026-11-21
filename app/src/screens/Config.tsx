@@ -4,6 +4,7 @@ import { check } from "@tauri-apps/plugin-updater";
 import { Icon } from "../components/Icon";
 import { Toggle } from "../components/Toggle";
 import { cancelSubscription, PLAN_INFO, type Account } from "../lib/account";
+import { openSupport } from "../lib/support";
 import { detectEncoder, encoderLabel, type Encoder } from "../lib/ffmpeg";
 import { fmtHours } from "../lib/format";
 import { clearTemp } from "../lib/native";
@@ -271,6 +272,18 @@ export function Config(props: {
               Procurar atualização
             </button>
           </div>
+        </section>
+
+        <section className="card" aria-labelledby="c-ajuda" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <h2 id="c-ajuda" className="sub" style={{ fontSize: 18 }}>
+            Ajuda e suporte
+          </h2>
+          <span className="small" style={{ color: "var(--soft)", lineHeight: 1.5 }}>
+            Dúvida, problema ou sugestão? Fale com a equipe da Clipei Studio Digital pelo WhatsApp. A mensagem já vai com a versão do seu app.
+          </span>
+          <button className="btn primary" style={{ alignSelf: "flex-start", background: "#1f9d55", borderColor: "#1f9d55" }} onClick={() => openSupport()}>
+            <Icon name="chat" size={16} /> Falar no WhatsApp
+          </button>
         </section>
 
         <section className="card" aria-labelledby="c-priv" style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 14 }}>

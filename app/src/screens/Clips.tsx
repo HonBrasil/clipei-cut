@@ -9,6 +9,7 @@ import { ensureDir, prepareFonts, revealPath } from "../lib/native";
 import { allModels, exportDirOf, useSettings, type FileNaming } from "../lib/settings";
 import { findClips, generatePost, wordsForClip } from "../lib/ai";
 import { CaptionEditor } from "../components/CaptionEditor";
+import { openSupport } from "../lib/support";
 import { fmtTime, slugify } from "../lib/format";
 import type { Clip, Project } from "../lib/types";
 
@@ -261,7 +262,14 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
               </div>
             </>
           ) : exp.error ? (
-            <div className="error">Não consegui exportar: {exp.error}</div>
+            <div className="error">
+              Não consegui exportar: {exp.error}
+              <div style={{ marginTop: 10 }}>
+                <button className="btn" onClick={() => openSupport(`Erro ao exportar: ${exp.error}`)}>
+                  Pedir ajuda no WhatsApp
+                </button>
+              </div>
+            </div>
           ) : (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
               <span className="badge ok">{exp.done.length} clipes salvos na pasta de exportação</span>

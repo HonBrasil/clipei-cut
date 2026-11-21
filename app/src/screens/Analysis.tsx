@@ -6,6 +6,7 @@ import { ApiError, findClips, transcribe } from "../lib/ai";
 import { fmtTime } from "../lib/format";
 import type { Layout, Project, Rect } from "../lib/types";
 import { useSettings } from "../lib/settings";
+import { openSupport } from "../lib/support";
 
 type StepId = "detect" | "audio" | "transcribe" | "ai";
 type StepState = { status: "wait" | "doing" | "done"; pct?: number };
@@ -195,6 +196,9 @@ export function Analysis(props: {
               <div style={{ marginTop: 10 }}>
                 <button className="btn" onClick={() => setRunId((n) => n + 1)}>
                   Tentar de novo
+                </button>{" "}
+                <button className="btn" onClick={() => openSupport(`Erro na análise: ${error}`)}>
+                  Pedir ajuda
                 </button>
               </div>
             </div>
