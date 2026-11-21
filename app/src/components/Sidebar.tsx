@@ -5,16 +5,17 @@ import { fmtHours } from "../lib/format";
 import { PLAN_INFO, type Account } from "../lib/account";
 import { openSupport } from "../lib/support";
 
-export type Screen = "home" | "library" | "analysis" | "clips" | "captions" | "exports" | "settings" | "plans";
+export type Screen = "home" | "library" | "analysis" | "clips" | "captions" | "exports" | "settings" | "plans" | "admin";
 
 export function Sidebar(props: {
   screen: Screen;
   credits: number | null;
   account: Account | null;
+  isAdmin?: boolean;
   onNavigate: (s: Screen) => void;
   onLogout: () => void;
 }) {
-  const { screen, credits, account, onNavigate, onLogout } = props;
+  const { screen, credits, account, isAdmin, onNavigate, onLogout } = props;
   const inNew = screen === "home" || screen === "analysis";
   const inLib = screen === "library" || screen === "clips";
   const [version, setVersion] = useState("");
@@ -46,6 +47,11 @@ export function Sidebar(props: {
         </button>
       ))}
 
+      {isAdmin && (
+        <button className={`nav-item ${screen === "admin" ? "active" : ""}`} onClick={() => onNavigate("admin")} aria-current={screen === "admin" ? "page" : undefined}>
+          <Icon name="grid" color="#b9a3ff" /> <span className="label">Painel admin</span>
+        </button>
+      )}
       <button className="nav-item" onClick={() => openSupport()} title="Falar com o suporte no WhatsApp">
         <Icon name="chat" color="#4ade80" /> <span className="label">Suporte (WhatsApp)</span>
       </button>

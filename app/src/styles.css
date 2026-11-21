@@ -226,3 +226,8 @@ select.input { padding-right: 10px; }
 .postBox { display: flex; flex-direction: column; gap: 10px; }
 .postField { padding: 10px 12px; border-radius: 10px; background: var(--card2); border: 1px solid var(--line); font-size: 14px; line-height: 1.5; white-space: pre-wrap; position: relative; }
 .postField .copy { position: absolute; right: 6px; top: 6px; }
+
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.adminTable { display: flex; flex-direction: column; }
+.adminRow { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr) auto auto; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.adminRow span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

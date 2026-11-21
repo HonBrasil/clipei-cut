@@ -3,6 +3,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 import { fetchAccount, type Account } from "./lib/account";
 import { Plans } from "./screens/Plans";
+import { Admin } from "./screens/Admin";
 import type { Project } from "./lib/types";
 import { Sidebar, type Screen } from "./components/Sidebar";
 import { Login } from "./screens/Login";
@@ -71,6 +72,7 @@ export function App() {
         screen={screen}
         credits={credits}
         account={account}
+        isAdmin={session.user.email?.toLowerCase() === "g4master01@gmail.com"}
         onNavigate={(s) => {
           setScreen(s);
           if (s === "settings" || s === "plans") refreshCredits();
@@ -104,6 +106,7 @@ export function App() {
             onOpenExports={() => setScreen("exports")}
           />
         )}
+        {screen === "admin" && <Admin />}
         {screen === "plans" && <Plans account={account} onAccount={setAccount} />}
         {screen === "library" && (
           <Library
