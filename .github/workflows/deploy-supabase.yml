@@ -28,11 +28,7 @@ jobs:
         with:
           version: latest
 
+      # Publica todas as pastas de supabase/functions; a verificação de login
+      # de cada função vem do supabase/config.toml (mp-webhook fica aberta).
       - name: Publicar as funções
-        run: |
-          supabase functions deploy transcribe --project-ref "$PROJECT_REF"
-          supabase functions deploy analyze --project-ref "$PROJECT_REF"
-          supabase functions deploy checkout --project-ref "$PROJECT_REF"
-          supabase functions deploy cancel-subscription --project-ref "$PROJECT_REF"
-          supabase functions deploy post-copy --project-ref "$PROJECT_REF"
-          supabase functions deploy mp-webhook --project-ref "$PROJECT_REF" --no-verify-jwt
+        run: supabase functions deploy --project-ref "$PROJECT_REF" --yes
