@@ -52,15 +52,24 @@
     "windows": {
       "nsis": {
         "languages": [
-          "PortugueseBR"
+          "PortugueseBR",
+          "English",
+          "Spanish"
         ],
-        "installMode": "currentUser"
+        "installMode": "currentUser",
+        "displayLanguageSelector": false,
+        "headerImage": "installer/header.bmp",
+        "sidebarImage": "installer/sidebar.bmp",
+        "installerIcon": "installer/installer.ico"
       }
     },
     "createUpdaterArtifacts": true,
     "resources": {
       "resources/fonts/*": "fonts/"
-    }
+    },
+    "copyright": "© Clipei Studio Digital",
+    "homepage": "https://clipeistudiodigital.com.br/",
+    "longDescription": "Clipei Cut transforma lives, gameplays e podcasts em clipes verticais com legenda, usando IA. O vídeo é processado no seu computador."
   },
   "plugins": {
     "updater": {

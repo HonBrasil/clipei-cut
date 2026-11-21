@@ -15,6 +15,8 @@ const out = "release";
 mkdirSync(out, { recursive: true });
 const name = `ClipeiCut_${version}_x64-setup.exe`;
 copyFileSync(join(nsis, exe), join(out, name));
+// Cópia com nome fixo: o link ".../releases/latest/download/ClipeiCut-Setup.exe" sempre baixa a última versão
+copyFileSync(join(nsis, exe), join(out, "ClipeiCut-Setup.exe"));
 
 const sigPath = join(nsis, `${exe}.sig`);
 if (existsSync(sigPath)) {
