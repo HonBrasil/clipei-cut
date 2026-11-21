@@ -35,8 +35,6 @@ jobs:
         run: |
           # A senha do banco é lida da variável SUPABASE_DB_PASSWORD
           supabase link --project-ref "$PROJECT_REF"
-          # As duas primeiras migrações já foram aplicadas direto no painel
-          supabase migration repair --status applied 20261120000000 20261120200000 --linked || true
           supabase db push --linked --yes
 
       - name: Aviso sobre o banco
