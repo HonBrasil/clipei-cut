@@ -42,7 +42,7 @@ for (const id of Object.keys(FONTS) as FontId[]) {
 }
 
 const s = (new URLSearchParams(location.search).get("s") ?? "captions") as Screen;
-const acc: Account = { plan: "pro", planPeriod: "mensal", planMethod: "recorrente", planStatus: "active", planExpiresAt: new Date(Date.now() + 20 * day).toISOString(), creditsSeconds: 31 * 3600, extraSeconds: 5 * 3600, allowanceSeconds: 50 * 3600, cycleStart: new Date().toISOString(), hasSubscription: true, totalSeconds: 36 * 3600 };
+const acc: Account = { plan: "pro", planPeriod: "mensal", planMethod: "recorrente", planStatus: "active", planExpiresAt: new Date(Date.now() + 20 * day).toISOString(), creditsSeconds: 31 * 3600, extraSeconds: 5 * 3600, allowanceSeconds: 50 * 3600, cycleStart: new Date().toISOString(), hasSubscription: true, trialClaimed: true, totalSeconds: 36 * 3600 };
 createRoot(document.getElementById("root")!).render(
   <SettingsProvider>
     <div className="shell">

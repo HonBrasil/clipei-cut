@@ -14,7 +14,21 @@ const DURATIONS: Array<{ label: string; prefs: Prefs }> = [
   { label: "60–90 s", prefs: { minSec: 60, maxSec: 90 } },
 ];
 
-export function Home({ credits, online, paid, onStart, onPlans }: { credits: number | null; online: boolean; paid: boolean; onStart: (p: Project) => void; onPlans: () => void }) {
+export function Home({
+  credits,
+  online,
+  paid,
+  trialBlocked,
+  onStart,
+  onPlans,
+}: {
+  credits: number | null;
+  online: boolean;
+  paid: boolean;
+  trialBlocked?: boolean;
+  onStart: (p: Project) => void;
+  onPlans: () => void;
+}) {
   const [dur, setDur] = useState(1);
   const [count, setCount] = useState<number | null>(null);
   const [over, setOver] = useState(false);
@@ -89,6 +103,17 @@ export function Home({ credits, online, paid, onStart, onPlans }: { credits: num
           <Icon name="shield" size={16} color="#4ade80" /> Seu vídeo nunca sai do seu PC
         </div>
       </header>
+
+      {trialBlocked && (
+        <div className="toolbar" style={{ borderColor: "#6b5418", background: "#2a2210" }}>
+          <span className="small" style={{ color: "#ffe2a3", lineHeight: 1.5 }}>
+            <b style={{ color: "#fff1cc" }}>A hora de teste grátis já foi usada neste computador.</b> Para analisar vídeos, escolha um plano ou compre horas avulsas.
+          </span>
+          <button className="btn primary" onClick={onPlans}>
+            Ver planos
+          </button>
+        </div>
+      )}
 
       <button className={`drop ${over ? "over" : ""}`} onClick={pick} disabled={busy}>
         <div className="icon">

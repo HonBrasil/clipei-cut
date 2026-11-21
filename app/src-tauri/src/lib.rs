@@ -1,6 +1,7 @@
 // O trabalho pesado (FFmpeg) roda como "sidecar" e é chamado pelo front-end
 // através do plugin shell. Aqui registramos os plugins e alguns comandos
 // nativos para pastas escolhidas pelo usuário.
+mod device;
 mod files;
 
 use std::path::Path;
@@ -10,6 +11,12 @@ use tauri_plugin_opener::OpenerExt;
 /// Subpastas temporárias do app (dentro da pasta de cache). Só elas são limpas:
 /// a pasta de cache também guarda os dados do navegador interno (login etc.).
 const TEMP_DIRS: [&str; 3] = ["audio", "frames", "export"];
+
+/// Código do computador (para a hora de teste grátis).
+#[tauri::command]
+fn device_id() -> String {
+    device::device_id()
+}
 
 #[tauri::command]
 fn ensure_dir(path: String) -> Result<(), String> {
@@ -78,6 +85,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            device_id,
             ensure_dir,
             list_videos,
             free_space,

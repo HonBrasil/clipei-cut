@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
-import { fetchAccount, type Account } from "./lib/account";
+import { claimTrial, fetchAccount, type Account, type TrialStatus } from "./lib/account";
 import { Plans } from "./screens/Plans";
 import { Admin } from "./screens/Admin";
 import type { Project } from "./lib/types";
@@ -44,9 +44,22 @@ export function App() {
   // Saldo atualizado pela transcrição (sem esperar outra consulta)
   const setCredits = useCallback((n: number) => setAccount((a) => (a ? { ...a, totalSeconds: n } : a)), []);
 
+  // Ao entrar: registra o computador e libera a hora de teste se ele ainda não usou
+  const [trial, setTrial] = useState<TrialStatus | null>(null);
+  const uid = session?.user.id;
   useEffect(() => {
-    if (session) refreshCredits();
-  }, [session, refreshCredits]);
+    if (!uid) return;
+    let alive = true;
+    (async () => {
+      const status = await claimTrial();
+      if (!alive) return;
+      setTrial(status);
+      refreshCredits();
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [uid, refreshCredits]);
 
   // Salva o projeto no PC sempre que algo muda (depois que a análise começou a render)
   useEffect(() => {
@@ -86,6 +99,7 @@ export function App() {
             online={online}
             credits={credits}
             paid={paid}
+            trialBlocked={!paid && (trial === "dispositivo_usado" || trial === "limite_rede") && (credits ?? 0) < 60}
             onPlans={() => setScreen("plans")}
             onStart={(p) => {
               setProject(p);
