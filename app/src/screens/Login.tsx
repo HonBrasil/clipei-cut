@@ -8,6 +8,10 @@ type Mode = "in" | "up" | "code" | "forgot" | "reset";
 
 export const PENDING_TERMS_KEY = "clipei-terms-aceitos";
 
+// Os e-mails com código dependem de um serviço de e-mail próprio (SMTP) no Supabase.
+// Enquanto ele não estiver configurado, "Esqueci minha senha" leva ao suporte.
+const CODE_EMAILS_ENABLED = false;
+
 export function Login({ online }: { online: boolean }) {
   const [mode, setMode] = useState<Mode>("in");
   const [email, setEmail] = useState("");
@@ -149,7 +153,12 @@ export function Login({ online }: { online: boolean }) {
         )}
 
         {mode === "in" && (
-          <button type="button" className="linkBtn" style={{ alignSelf: "flex-end", fontSize: 13, marginTop: -8 }} onClick={() => go("forgot")}>
+          <button
+            type="button"
+            className="linkBtn"
+            style={{ alignSelf: "flex-end", fontSize: 13, marginTop: -8 }}
+            onClick={() => (CODE_EMAILS_ENABLED ? go("forgot") : openSupport(`Esqueci a senha da minha conta${email ? ` (${email})` : ""}.`))}
+          >
             Esqueci minha senha
           </button>
         )}
