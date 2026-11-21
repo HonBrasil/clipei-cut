@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { useEffect, useState } from "react";
 import { join } from "@tauri-apps/api/path";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { Icon } from "../components/Icon";
@@ -9,6 +8,7 @@ import { ensureDir, prepareFonts, revealPath } from "../lib/native";
 import { allModels, exportDirOf, useSettings, type FileNaming } from "../lib/settings";
 import { findClips, generatePost, wordsForClip } from "../lib/ai";
 import { CaptionEditor } from "../components/CaptionEditor";
+import { ClipPreview } from "../components/ClipPreview";
 import { openSupport } from "../lib/support";
 import { fmtTime, slugify } from "../lib/format";
 import type { Clip, Project } from "../lib/types";
@@ -31,31 +31,14 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
   const [panel, setPanel] = useState<{ kind: "captions" | "post"; id: string } | null>(null);
   const [postState, setPostState] = useState<{ busy: boolean; error?: string }>({ busy: false });
   const [copied, setCopied] = useState<string | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const src = useMemo(() => convertFileSrc(project.video.path), [project.video.path]);
+  const [seekReq, setSeekReq] = useState<{ t: number; n: number } | undefined>(undefined);
 
   useEffect(() => {
     detectEncoder(settings.useGpu).then(setEncoder).catch(() => setEncoder("libx264"));
   }, [settings.useGpu]);
 
-  // Toca só o trecho do clipe escolhido
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v || !playing) return;
-    const start = () => {
-      v.currentTime = playing.start;
-    };
-    if (v.readyState >= 1) start();
-    else v.addEventListener("loadedmetadata", start, { once: true });
-    const stopAtEnd = () => {
-      if (v.currentTime >= playing.end) {
-        v.pause();
-        v.currentTime = playing.start;
-      }
-    };
-    v.addEventListener("timeupdate", stopAtEnd);
-    return () => v.removeEventListener("timeupdate", stopAtEnd);
-  }, [playing]);
+  const current = clips.find((c) => c.id === playing?.id) ?? null;
+  const previewModel = models.find((m) => m.id === modelId) ?? models[0];
 
   function toggle(id: string) {
     setSelected((s) => {
@@ -80,10 +63,40 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
   }
 
   function seek(t: number) {
-    const v = videoRef.current;
-    if (!v) return;
-    v.currentTime = t;
-    v.play().catch(() => {});
+    setSeekReq((r) => ({ t, n: (r?.n ?? 0) + 1 }));
+  }
+
+  // ----- Ajuste de início e fim (planos pagos) -----
+  function setCut(clip: Clip, start: number, end: number) {
+    const words = project.transcript?.words ?? [];
+    // Encaixa no começo/fim de palavra mais próximo
+    const s0 = words.length ? words.reduce((b, w) => (Math.abs(w.start - start) < Math.abs(b - start) ? w.start : b), words[0].start) : start;
+    const e0 = words.length ? words.reduce((b, w) => (Math.abs(w.end - end) < Math.abs(b - end) ? w.end : b), words[0].end) : end;
+    const ns = Math.max(0, s0 - 0.12);
+    const ne = Math.min(project.video.duration, e0 + 0.2);
+    if (ne - ns < 3 || ne - ns > 180) return;
+    onChange((p) => ({
+      ...p,
+      clips: (p.clips ?? []).map((c) => (c.id === clip.id ? { ...c, start: ns, end: ne, orig: c.orig ?? { start: c.start, end: c.end } } : c)),
+    }));
+  }
+  function sentence(edge: "start" | "end", dir: -1 | 1, t: number): number | null {
+    const segs = project.transcript?.segments ?? [];
+    const pts = segs.map((s) => (edge === "start" ? s.start : s.end));
+    const cand = dir < 0 ? pts.filter((x) => x < t - 0.4).pop() : pts.find((x) => x > t + 0.4);
+    return cand ?? null;
+  }
+  function moveStart(c: Clip, how: "frase" | "fino", dir: -1 | 1) {
+    const t = how === "fino" ? c.start + dir * 0.5 : sentence("start", dir, c.start);
+    if (t != null) setCut(c, t, c.end);
+  }
+  function moveEnd(c: Clip, how: "frase" | "fino", dir: -1 | 1) {
+    const t = how === "fino" ? c.end + dir * 0.5 : sentence("end", dir, c.end);
+    if (t != null) setCut(c, c.start, t);
+  }
+  function resetCut(c: Clip) {
+    if (!c.orig) return;
+    onChange((p) => ({ ...p, clips: (p.clips ?? []).map((x) => (x.id === c.id ? { ...x, start: c.orig!.start, end: c.orig!.end, orig: undefined } : x)) }));
   }
 
   async function makePost(clip: Clip) {
@@ -302,8 +315,15 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
                 <span className="muted small" style={{ lineHeight: 1.45 }}>
                   {c.reason && <span className="badge ai" style={{ marginRight: 6 }}>{c.reason}</span>}“{c.hook}”
                 </span>
-                <button className="btn" style={{ minHeight: 40 }} onClick={() => setPlaying(c)}>
-                  <Icon name="play" size={14} /> Assistir trecho
+                <button
+                  className="btn"
+                  style={{ minHeight: 40 }}
+                  onClick={() => {
+                    setPlaying(c);
+                    setPanel(null);
+                  }}
+                >
+                  <Icon name="play" size={14} /> Assistir e ajustar
                 </button>
                 <div style={{ display: "flex", gap: 6 }}>
                   <button
@@ -339,13 +359,61 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
         </section>
 
         <aside className="player" style={{ flex: "2 1 340px", minWidth: 0 }} aria-label="Prévia">
-          <video ref={videoRef} src={src} controls preload="metadata" />
-          {playing && !panel && (
-            <div className="card" style={{ padding: 16 }}>
-              <b>{playing.title}</b>
-              <div className="muted small" style={{ marginTop: 6 }}>
-                {fmtTime(playing.start)} → {fmtTime(playing.end)} · a prévia mostra o vídeo original; o formato vertical e a legenda entram na exportação.
+          {current ? (
+            <ClipPreview
+              video={project.video}
+              clip={current}
+              layout={project.layout ?? "cam-top"}
+              webcam={project.layout === "cam-top" ? project.webcam : null}
+              words={project.transcript ? wordsForClip(project.transcript.words, current) : []}
+              model={captions && project.transcript ? previewModel : null}
+              censor={settings.censor}
+              watermark={!paid}
+              seek={seekReq}
+            />
+          ) : (
+            <div className="card muted small">Clique em “Assistir” num clipe para ver como ele vai ficar.</div>
+          )}
+          {current && !panel && (
+            <div className="card" style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <b>{current.title}</b>
+                <div className="muted small" style={{ marginTop: 4 }}>
+                  {fmtTime(current.start)} → {fmtTime(current.end)} · {Math.round(current.end - current.start)} s · prévia com o formato e a legenda do vídeo final
+                </div>
               </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <b className="small">Ajustar corte</b>
+                {!paid && <span className="planTag">Planos pagos</span>}
+                {paid && current.orig && (
+                  <button className="linkBtn" style={{ marginLeft: "auto" }} onClick={() => resetCut(current)}>
+                    Voltar ao corte da IA
+                  </button>
+                )}
+              </div>
+              {paid ? (
+                <div className="trim">
+                  <span className="muted small">Início</span>
+                  <div className="trimBtns">
+                    <button className="btn" onClick={() => moveStart(current, "frase", -1)} title="Começar na frase anterior">« Frase</button>
+                    <button className="btn" onClick={() => moveStart(current, "fino", -1)}>−0,5 s</button>
+                    <button className="btn" onClick={() => moveStart(current, "fino", 1)}>+0,5 s</button>
+                    <button className="btn" onClick={() => moveStart(current, "frase", 1)} title="Começar na próxima frase">Frase »</button>
+                  </div>
+                  <span className="muted small">Fim</span>
+                  <div className="trimBtns">
+                    <button className="btn" onClick={() => moveEnd(current, "frase", -1)} title="Terminar na frase anterior">« Frase</button>
+                    <button className="btn" onClick={() => moveEnd(current, "fino", -1)}>−0,5 s</button>
+                    <button className="btn" onClick={() => moveEnd(current, "fino", 1)}>+0,5 s</button>
+                    <button className="btn" onClick={() => moveEnd(current, "frase", 1)} title="Terminar na próxima frase">Frase »</button>
+                  </div>
+                  <span className="muted" style={{ fontSize: 12 }}>O corte sempre encaixa no começo ou no fim de uma palavra, então nunca corta alguém no meio da fala.</span>
+                </div>
+              ) : (
+                <button className="btn" style={{ alignSelf: "flex-start" }} onClick={onPlans}>
+                  Liberar ajuste de início e fim
+                </button>
+              )}
             </div>
           )}
           {panel?.kind === "captions" && project.transcript && clips.find((c) => c.id === panel.id) && (

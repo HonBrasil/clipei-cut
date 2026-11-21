@@ -231,3 +231,13 @@ select.input { padding-right: 10px; }
 .adminTable { display: flex; flex-direction: column; }
 .adminRow { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr) auto auto; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
 .adminRow span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.previewFrame { position: relative; border-radius: 16px; overflow: hidden; background: #000; border: 1px solid var(--line2); container-type: inline-size; }
+.previewFrame canvas { cursor: pointer; }
+.pvPlay { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 64px; height: 64px; border-radius: 99px; border: 0; background: rgba(227, 18, 31, 0.92); display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5); }
+.pvMark { position: absolute; left: 0; right: 0; bottom: 3.5%; text-align: center; font: 700 3.6cqw Poppins, "clipei-poppins", sans-serif; color: rgba(255, 255, 255, 0.75); text-shadow: 0 1px 3px #000; pointer-events: none; }
+.pvBrand { position: absolute; right: 3.7%; top: 2%; color: rgba(255, 255, 255, 0.82); -webkit-text-stroke: 0.5px #000; pointer-events: none; }
+.trim { display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; align-items: center; }
+.trim > span:last-child { grid-column: 1 / -1; }
+.trimBtns { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.trimBtns .btn { min-height: 38px; padding: 0 6px; font-size: 12px; }

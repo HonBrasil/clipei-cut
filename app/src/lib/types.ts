@@ -26,6 +26,7 @@ export type Clip = {
   reason: string;
   hook: string;
   post?: PostCopy; // texto do post gerado pela IA
+  orig?: { start: number; end: number }; // corte original da IA (antes do ajuste manual)
 };
 
 export type PostCopy = { titulo: string; descricao: string; hashtags: string[] };
