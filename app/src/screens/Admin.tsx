@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { brl } from "../lib/account";
+import { AdminUsers, UserDrawer } from "./AdminUsers";
 
 type Stats = {
   generatedAt: string;
@@ -8,8 +9,8 @@ type Stats = {
   subscriptions: { active: number; cancelled: number; recorrentes: number; byPlan: { criador: number; pro: number; studio: number } };
   revenue: { grossMonth: number; netMonth: number; grossPrev: number; payments: number; byProduct: Record<string, { qty: number; total: number }> };
   usage: { hours: number; analyses: number; aiCost: number; profitEstimate: number };
-  recentPayments: Array<{ id: string; email: string; product: string; amount: number; method: string | null; created_at: string }>;
-  newestUsers: Array<{ email: string; plan: string; created_at: string }>;
+  recentPayments: Array<{ id: string; user_id: string | null; email: string; product: string; amount: number; method: string | null; created_at: string }>;
+  newestUsers: Array<{ id: string; email: string; plan: string; created_at: string }>;
 };
 
 const PRODUCT: Record<string, string> = {
@@ -28,6 +29,8 @@ export function Admin() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [view, setView] = useState<"geral" | "usuarios">("geral");
+  const [openUser, setOpenUser] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -48,9 +51,16 @@ export function Admin() {
     }
   }, []);
 
+  const [statsStale, setStatsStale] = useState(false);
   useEffect(() => {
     load();
   }, [load]);
+  useEffect(() => {
+    if (view === "geral" && statsStale && !openUser) {
+      setStatsStale(false);
+      load();
+    }
+  }, [view, statsStale, openUser, load]);
 
   const r = stats?.revenue;
   const growth = r && r.grossPrev > 0 ? ((r.grossMonth - r.grossPrev) / r.grossPrev) * 100 : null;
@@ -73,9 +83,21 @@ export function Admin() {
         </div>
       </header>
 
-      {error && <div className="error">Não consegui carregar o painel: {error}</div>}
+      <div className="seg" role="tablist" aria-label="Seções do painel" style={{ alignSelf: "flex-start" }}>
+        <button role="tab" aria-selected={view === "geral"} className={view === "geral" ? "on" : ""} onClick={() => setView("geral")}>
+          Visão geral
+        </button>
+        <button role="tab" aria-selected={view === "usuarios"} className={view === "usuarios" ? "on" : ""} onClick={() => setView("usuarios")}>
+          Usuários
+        </button>
+      </div>
 
-      {stats && (
+      {view === "usuarios" && <AdminUsers onOpen={setOpenUser} />}
+      {openUser && <UserDrawer userId={openUser} onClose={() => setOpenUser(null)} onChanged={() => setStatsStale(true)} />}
+
+      {view === "geral" && error && <div className="error">Não consegui carregar o painel: {error}</div>}
+
+      {view === "geral" && stats && (
         <>
           <section className="kpis" aria-label="Resumo">
             <div className="stat">
@@ -170,7 +192,14 @@ export function Admin() {
               {stats.recentPayments.length === 0 && <span className="muted small">Nenhum pagamento ainda.</span>}
               <div className="adminTable" role="table">
                 {stats.recentPayments.map((p) => (
-                  <div key={p.id} className="adminRow" role="row">
+                  <div
+                    key={p.id}
+                    className={`adminRow${p.user_id ? " click" : ""}`}
+                    role="row"
+                    tabIndex={p.user_id ? 0 : -1}
+                    onClick={() => p.user_id && setOpenUser(p.user_id)}
+                    onKeyDown={(e) => e.key === "Enter" && p.user_id && setOpenUser(p.user_id)}
+                  >
                     <span title={p.email}>{p.email}</span>
                     <span className="muted">{PRODUCT[p.product] ?? p.product}</span>
                     <b>{brl(Number(p.amount))}</b>
@@ -186,7 +215,15 @@ export function Admin() {
               </h2>
               <div className="adminTable" role="table">
                 {stats.newestUsers.map((u, i) => (
-                  <div key={i} className="adminRow" role="row" style={{ gridTemplateColumns: "minmax(0, 2fr) 1fr 1fr" }}>
+                  <div
+                    key={u.id ?? i}
+                    className="adminRow click"
+                    role="row"
+                    tabIndex={0}
+                    style={{ gridTemplateColumns: "minmax(0, 2fr) 1fr 1fr" }}
+                    onClick={() => u.id && setOpenUser(u.id)}
+                    onKeyDown={(e) => e.key === "Enter" && u.id && setOpenUser(u.id)}
+                  >
                     <span title={u.email}>{u.email}</span>
                     <span className="muted">{PLAN[u.plan] ?? u.plan}</span>
                     <span className="muted">{new Date(u.created_at).toLocaleDateString("pt-BR")}</span>

@@ -250,3 +250,34 @@ select.input { padding-right: 10px; }
 .check { accent-color: #e3121f; }
 .acceptRow { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--soft); line-height: 1.5; }
 .acceptRow input { width: 18px; height: 18px; margin-top: 1px; accent-color: #e3121f; flex: 0 0 auto; }
+
+/* Painel admin — usuários */
+.adminRow.click { cursor: pointer; border-radius: 8px; padding-left: 6px; padding-right: 6px; margin: 0 -6px; }
+.adminRow.click:hover, .adminRow.click:focus-visible { background: #17171d; outline: none; }
+.userList { display: flex; flex-direction: column; }
+.userRow { display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(0, 1.3fr) 0.8fr 1fr 1fr; gap: 12px; align-items: center; padding: 12px 8px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--text); font-size: 14px; text-align: left; border-radius: 10px; min-height: 48px; }
+.userRow:not(.head) { cursor: pointer; }
+.userRow:not(.head):hover, .userRow:not(.head):focus-visible { background: #17171d; outline: none; }
+.userRow.head { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; min-height: 0; padding-top: 4px; }
+.userRow span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.userRow .email { font-weight: 600; }
+.badge.free { background: #1b1b23; color: var(--soft); }
+.badge.warn { background: #2a2210; color: #ffd27a; }
+.btn.danger { background: var(--red-tint); border-color: #6b1d24; color: #ffd5d8; font-weight: 700; }
+.btn.danger:hover:not(:disabled) { background: #3a1519; }
+.drawerBack { justify-content: flex-end; padding: 0; }
+.drawer { width: min(560px, 100%); height: 100%; background: var(--bg); border-left: 1px solid var(--line); display: flex; flex-direction: column; box-shadow: -24px 0 80px rgba(0, 0, 0, 0.5); animation: drawerIn 0.18s ease-out; position: relative; }
+@keyframes drawerIn { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.drawerHead { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 20px 22px; border-bottom: 1px solid var(--line); }
+.drawerBody { flex: 1; overflow-y: auto; padding: 18px 22px 120px; display: flex; flex-direction: column; gap: 16px; }
+.kvList { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); }
+.adminBox { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); }
+.adminBox h3 { font-size: 15px; margin: 0; }
+.histItem { display: flex; flex-direction: column; gap: 3px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.histItem:last-child { border-bottom: 0; }
+.okMsg { padding: 12px 14px; border-radius: 12px; background: #12201a; border: 1px solid #1f5136; color: #bff5d3; font-size: 14px; }
+.confirmBar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 22px; background: #15151b; border-top: 1px solid var(--line2); box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45); font-size: 14px; }
+@media (max-width: 760px) {
+  .userRow { grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr) 0.8fr; }
+  .hideSm { display: none; }
+}

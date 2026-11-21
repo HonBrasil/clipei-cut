@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
   const newestWithEmail = await Promise.all(
     (newest ?? []).map(async (p) => {
       const { data } = await db.auth.admin.getUserById(p.id);
-      return { plan: p.plan, created_at: p.created_at, email: data.user?.email ?? "—" };
+      return { id: p.id, plan: p.plan, created_at: p.created_at, email: data.user?.email ?? "—" };
     }),
   );
 
