@@ -102,7 +102,7 @@ npm run tauri dev
 
 | Produto | Preço | Horas |
 |---|---|---|
-| Grátis | R$ 0 | 1 h/mês, marca d'água, 720p |
+| Grátis | R$ 0 | 1 h de teste (uma vez, não renova), marca d'água, 720p |
 | Criador | R$ 34,90/mês · R$ 349,90/ano | 15 h/mês |
 | Pro | R$ 69,90/mês · R$ 699,90/ano | 50 h/mês |
 | Studio | R$ 159,90/mês · R$ 1.599,90/ano | 150 h/mês |

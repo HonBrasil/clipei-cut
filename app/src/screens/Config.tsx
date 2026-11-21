@@ -128,7 +128,7 @@ export function Config(props: {
             </div>
             <span className="muted small">
               {account && account.extraSeconds > 0 ? `Inclui ${fmtHours(account.extraSeconds)} avulsas (não vencem). ` : ""}
-              Cada minuto de vídeo analisado usa 1 minuto de crédito. As horas do plano renovam todo mês.
+              Cada minuto de vídeo analisado usa 1 minuto de crédito. {account?.plan === "free" ? "A hora de teste do Grátis é única e não renova." : "As horas do plano renovam todo mês."}
             </span>
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>

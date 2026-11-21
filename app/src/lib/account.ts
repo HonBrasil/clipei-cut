@@ -19,7 +19,7 @@ export type Account = {
 };
 
 export const PLAN_INFO: Record<PlanId, { name: string; hours: number; monthly: number; yearly: number; perks: string[] }> = {
-  free: { name: "Grátis", hours: 1, monthly: 0, yearly: 0, perks: ["1 hora de vídeo por mês", "Marca d'água Clipei Cut", "Exporta em 720p", "Modelos de legenda prontos"] },
+  free: { name: "Grátis", hours: 1, monthly: 0, yearly: 0, perks: ["1 hora de teste (uma vez, não renova)", "Marca d'água Clipei Cut", "Exporta em 720p", "Modelos de legenda prontos"] },
   criador: { name: "Criador", hours: 15, monthly: 34.9, yearly: 349.9, perks: ["15 horas de vídeo por mês", "Sem marca d'água", "1080p até 60 fps", "Todos os modelos e marca do canal"] },
   pro: { name: "Pro", hours: 50, monthly: 69.9, yearly: 699.9, perks: ["50 horas de vídeo por mês", "Tudo do Criador", "Ideal para quem faz live toda semana", "Prioridade no suporte"] },
   studio: { name: "Studio", hours: 150, monthly: 159.9, yearly: 1599.9, perks: ["150 horas de vídeo por mês", "Tudo do Pro", "Para agências e editores de vários canais", "Suporte prioritário"] },
