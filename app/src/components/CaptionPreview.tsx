@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import type { CaptionModel } from "../lib/settings";
+import { FONTS, type CaptionModel } from "../lib/settings";
 
 const SAMPLE = ["NÃO", "ACREDITO", "NISSO", "OLHA", "ESSA", "JOGADA"];
 
@@ -16,7 +16,7 @@ export function CaptionPreview({ model, width = 220, animate = true }: { model: 
   }, [animate]);
 
   const k = width / 1080;
-  const fontSize = 82 * (model.size / 100) * k;
+  const fontSize = 82 * (model.size / 100) * (FONTS[model.font]?.scale ?? 1) * k;
   const top = { topo: 830, meio: 1010, baixo: 1560 }[model.position] * k;
   const group = i < 3 ? SAMPLE.slice(0, 3) : SAMPLE.slice(3);
   const cur = i % 3;

@@ -7,7 +7,7 @@ import { captionY, groupWords, isBadWord, keywordColor, maskWord } from "../lib/
 import { fromOut, toOut, zoomAt, type ClipPlan } from "../lib/edit";
 import { fmtTime } from "../lib/format";
 import { loadCaptionFonts } from "../lib/native";
-import type { CaptionModel } from "../lib/settings";
+import { FONTS, type CaptionModel } from "../lib/settings";
 import { captionBase, layoutSize, type Clip, type Layout, type Rect, type VideoInfo, type Word } from "../lib/types";
 import { ctaY, logoBox, type Cta } from "../lib/brand";
 import type { BrandKit } from "../lib/settings";
@@ -210,7 +210,7 @@ export function ClipPreview(props: {
       }
     }
   }
-  const fontSize = model ? captionBase(layout) * (model.size / 100) * k : 0;
+  const fontSize = model ? captionBase(layout) * (model.size / 100) * (FONTS[model.font]?.scale ?? 1) * k : 0;
   const stroke = model?.outline && !model.box ? Math.max(1.2, fontSize * 0.075) : 0;
   const kwColor = model ? keywordColor(model) : "#FFD43B";
   const emojiNow = plan?.emojis.find((e) => t >= e.start && t < e.end) ?? null;

@@ -7,7 +7,7 @@ import { brandActive, brandedModel, ctaOf, logoBox } from "../lib/brand";
 import { buildAss, buildCoverAss, captionY, censorIntervals } from "../lib/ass";
 import { ensureDir, prepareEmojis, prepareFonts, revealPath } from "../lib/native";
 import { EMOJIS, fromOut, planClip, zoomExpr as zoomExprOf, type EditOpts } from "../lib/edit";
-import { allModels, exportDirOf, useSettings, type FileNaming } from "../lib/settings";
+import { allModels, exportDirOf, FONTS, useSettings, type FileNaming } from "../lib/settings";
 import { findClips, generatePost, wordsForClip } from "../lib/ai";
 import { CaptionEditor } from "../components/CaptionEditor";
 import { ClipPreview } from "../components/ClipPreview";
@@ -221,7 +221,7 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
               logo: branded && kit.logo ? { file: kit.logo, ...logoBox(kit, layout), opacity: kit.logoOpacity } : null,
               emojis: plan.emojis.map((e) => {
                 const size = layout === "wide" ? 110 : 140;
-                const font = captionBase(layout) * (model.size / 100);
+                const font = captionBase(layout) * (model.size / 100) * (FONTS[model.font]?.scale ?? 1);
                 const y = captionY(layout, Boolean(project.webcam), model.position) - font - 75 - size / 2;
                 return { file: `emoji/${EMOJIS[e.emoji]}.png`, start: e.start, end: e.end, x: VW / 2 - size / 2, y: Math.max(20, y), size };
               }),

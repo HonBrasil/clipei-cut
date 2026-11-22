@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Toggle } from "../components/Toggle";
 import { CaptionPreview } from "../components/CaptionPreview";
 import { loadCaptionFonts } from "../lib/native";
-import { allModels, FONTS, useSettings, type CaptionAnim, type CaptionModel, type CaptionPos, type FontId } from "../lib/settings";
+import { FontPicker } from "../components/FontPicker";
+import { allModels, FONTS, useSettings, type CaptionAnim, type CaptionModel, type CaptionPos } from "../lib/settings";
 
 const COLORS: Array<[string, string]> = [
   ["Vermelho Clipei", "#FF3B4A"],
@@ -111,14 +112,8 @@ export function Captions() {
                 <input id="mname" className="input" value={draft.name} disabled={draft.builtin} onChange={(e) => set({ name: e.target.value })} />
               </div>
               <div className="field">
-                <label htmlFor="font">Fonte</label>
-                <select id="font" className="input" value={draft.font} onChange={(e) => set({ font: e.target.value as FontId })}>
-                  {(Object.keys(FONTS) as FontId[]).map((f) => (
-                    <option key={f} value={f}>
-                      {FONTS[f].label}
-                    </option>
-                  ))}
-                </select>
+                <label>Fonte · {FONTS[draft.font]?.label}</label>
+                <FontPicker value={draft.font} onChange={(f) => set({ font: f })} />
               </div>
               <div className="field">
                 <label htmlFor="size">Tamanho · {draft.size}%</label>

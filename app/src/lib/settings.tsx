@@ -3,14 +3,56 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { appDataDir, join, videoDir } from "@tauri-apps/api/path";
 import { exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 
-export type FontId = "poppins" | "bebas" | "anton" | "archivo" | "luckiest";
+export type FontId =
+  | "poppins" | "bebas" | "anton" | "archivo" | "luckiest"
+  | "montserrat" | "lilita" | "bangers" | "titan" | "russo" | "blackops" | "bungee" | "pressstart" | "orbitron"
+  | "chakra" | "teko" | "kanit" | "rubik" | "oswald" | "marker" | "fredoka" | "righteous" | "paytone"
+  | "barlow" | "nunito" | "pacifico" | "bowlby" | "passion";
 
-export const FONTS: Record<FontId, { label: string; family: string; file: string }> = {
-  poppins: { label: "Poppins Extra Bold", family: "Poppins ExtraBold", file: "Poppins-ExtraBold.ttf" },
-  bebas: { label: "Bebas Neue", family: "Bebas Neue", file: "BebasNeue-Regular.ttf" },
-  anton: { label: "Anton", family: "Anton", file: "Anton-Regular.ttf" },
-  archivo: { label: "Archivo Black", family: "Archivo Black", file: "ArchivoBlack-Regular.ttf" },
-  luckiest: { label: "Luckiest Guy", family: "Luckiest Guy", file: "LuckiestGuy-Regular.ttf" },
+export type FontCat = "populares" | "jogos" | "impacto" | "divertidas" | "estilo";
+export const FONT_CATS: Array<{ id: FontCat; label: string }> = [
+  { id: "populares", label: "Mais usadas" },
+  { id: "jogos", label: "Jogos" },
+  { id: "impacto", label: "Impacto" },
+  { id: "divertidas", label: "Divertidas" },
+  { id: "estilo", label: "Estilo" },
+];
+
+/** family = nome interno da fonte (o que o FFmpeg procura). scale ajusta fontes muito largas ou estreitas. */
+export const FONTS: Record<FontId, { label: string; family: string; file: string; cat: FontCat; bold?: boolean; italic?: boolean; scale?: number }> = {
+  // Mais usadas em cortes
+  montserrat: { label: "Montserrat Black", family: "Montserrat Black", file: "Montserrat-Black.ttf", cat: "populares" },
+  poppins: { label: "Poppins Extra Bold", family: "Poppins ExtraBold", file: "Poppins-ExtraBold.ttf", cat: "populares" },
+  lilita: { label: "Lilita One", family: "Lilita One", file: "LilitaOne-Regular.ttf", cat: "populares", scale: 1.05 },
+  bangers: { label: "Bangers", family: "Bangers", file: "Bangers-Regular.ttf", cat: "populares", scale: 1.25 },
+  kanit: { label: "Kanit Itálico", family: "Kanit ExtraBold", file: "Kanit-ExtraBoldItalic.ttf", cat: "populares", italic: true, scale: 1.1 },
+  rubik: { label: "Rubik Black", family: "Rubik Black", file: "Rubik-Black.ttf", cat: "populares" },
+  // Jogos
+  russo: { label: "Russo One", family: "Russo One", file: "RussoOne-Regular.ttf", cat: "jogos" },
+  blackops: { label: "Black Ops", family: "Black Ops One", file: "BlackOpsOne-Regular.ttf", cat: "jogos", scale: 0.95 },
+  bungee: { label: "Bungee", family: "Bungee", file: "Bungee-Regular.ttf", cat: "jogos", scale: 1.45 },
+  orbitron: { label: "Orbitron", family: "Orbitron Black", file: "Orbitron-Black.ttf", cat: "jogos", scale: 0.82 },
+  chakra: { label: "Chakra Petch", family: "Chakra Petch", file: "ChakraPetch-Bold.ttf", cat: "jogos", bold: true, scale: 1.2 },
+  pressstart: { label: "Press Start (pixel)", family: "Press Start 2P", file: "PressStart2P-Regular.ttf", cat: "jogos", scale: 0.58 },
+  teko: { label: "Teko", family: "Teko", file: "Teko-Bold.ttf", cat: "jogos", bold: true, scale: 1.3 },
+  // Impacto
+  anton: { label: "Anton", family: "Anton", file: "Anton-Regular.ttf", cat: "impacto", scale: 1.15 },
+  bebas: { label: "Bebas Neue", family: "Bebas Neue", file: "BebasNeue-Regular.ttf", cat: "impacto", scale: 1.2 },
+  oswald: { label: "Oswald", family: "Oswald", file: "Oswald-Bold.ttf", cat: "impacto", bold: true, scale: 1.08 },
+  barlow: { label: "Barlow Condensed", family: "Barlow Condensed ExtraBold", file: "BarlowCondensed-ExtraBold.ttf", cat: "impacto", scale: 1.15 },
+  archivo: { label: "Archivo Black", family: "Archivo Black", file: "ArchivoBlack-Regular.ttf", cat: "impacto", scale: 0.95 },
+  bowlby: { label: "Bowlby One", family: "Bowlby One SC", file: "BowlbyOneSC-Regular.ttf", cat: "impacto", scale: 0.85 },
+  passion: { label: "Passion One", family: "Passion One", file: "PassionOne-Bold.ttf", cat: "impacto", bold: true, scale: 1.15 },
+  // Divertidas
+  luckiest: { label: "Luckiest Guy", family: "Luckiest Guy", file: "LuckiestGuy-Regular.ttf", cat: "divertidas" },
+  titan: { label: "Titan One", family: "Titan One", file: "TitanOne-Regular.ttf", cat: "divertidas", scale: 0.95 },
+  fredoka: { label: "Fredoka", family: "Fredoka", file: "Fredoka-Bold.ttf", cat: "divertidas", bold: true, scale: 1.05 },
+  paytone: { label: "Paytone One", family: "Paytone One", file: "PaytoneOne-Regular.ttf", cat: "divertidas" },
+  nunito: { label: "Nunito Black", family: "Nunito Black", file: "Nunito-Black.ttf", cat: "divertidas", scale: 1.05 },
+  // Estilo
+  righteous: { label: "Righteous", family: "Righteous", file: "Righteous-Regular.ttf", cat: "estilo", scale: 1.02 },
+  marker: { label: "Permanent Marker", family: "Permanent Marker", file: "PermanentMarker-Regular.ttf", cat: "estilo" },
+  pacifico: { label: "Pacifico", family: "Pacifico", file: "Pacifico-Regular.ttf", cat: "estilo", scale: 1.2 },
 };
 
 export type CaptionAnim = "palavra" | "pop" | "digitacao" | "frase";
@@ -39,6 +81,13 @@ export const BUILTIN_MODELS: CaptionModel[] = [
   { id: "podcast", name: "Podcast limpo", builtin: true, font: "poppins", size: 85, base: "#FFFFFF", highlight: "#FFFFFF", outline: false, box: true, uppercase: false, anim: "frase", position: "baixo", brand: "" },
   { id: "impacto", name: "Impacto", builtin: true, font: "anton", size: 115, base: "#FFFFFF", highlight: "#FF3B4A", outline: true, box: false, uppercase: true, anim: "pop", position: "meio", brand: "" },
   { id: "divertido", name: "Divertido", builtin: true, font: "luckiest", size: 100, base: "#FFFFFF", highlight: "#B9A3FF", outline: true, box: false, uppercase: true, anim: "digitacao", position: "meio", brand: "" },
+  { id: "viral", name: "Viral Montserrat", builtin: true, font: "montserrat", size: 100, base: "#FFFFFF", highlight: "#FFD400", outline: true, box: false, uppercase: true, anim: "pop", position: "meio", brand: "" },
+  { id: "fps", name: "FPS tático", builtin: true, font: "blackops", size: 100, base: "#FFFFFF", highlight: "#4ADE80", outline: true, box: false, uppercase: true, anim: "palavra", position: "meio", brand: "" },
+  { id: "pixel", name: "Pixel retrô", builtin: true, font: "pressstart", size: 100, base: "#FFFFFF", highlight: "#5EEAD4", outline: true, box: false, uppercase: true, anim: "digitacao", position: "meio", brand: "" },
+  { id: "quadrinhos", name: "Quadrinhos", builtin: true, font: "bangers", size: 105, base: "#FFFFFF", highlight: "#FFD400", outline: true, box: false, uppercase: true, anim: "pop", position: "meio", brand: "" },
+  { id: "jogo", name: "Jogo colorido", builtin: true, font: "lilita", size: 100, base: "#FFFFFF", highlight: "#FF8A00", outline: true, box: false, uppercase: true, anim: "pop", position: "meio", brand: "" },
+  { id: "estilo", name: "Itálico estiloso", builtin: true, font: "kanit", size: 100, base: "#FFFFFF", highlight: "#FF3B4A", outline: true, box: false, uppercase: true, anim: "palavra", position: "meio", brand: "" },
+  { id: "futuro", name: "Futurista", builtin: true, font: "orbitron", size: 100, base: "#FFFFFF", highlight: "#B9A3FF", outline: true, box: false, uppercase: true, anim: "palavra", position: "meio", brand: "" },
 ];
 
 export type Quality = "1080p60" | "1080p30" | "720p30";

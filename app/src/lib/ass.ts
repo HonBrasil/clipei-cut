@@ -102,12 +102,14 @@ export function buildAss(
 ): string {
   const { w: playX, h: playY } = layoutSize(layout);
   const vertical = playY > playX;
-  const size = Math.round(captionBase(layout) * (model.size / 100));
+  const fontInfo = FONTS[model.font] ?? FONTS.poppins;
+  const size = Math.round(captionBase(layout) * (model.size / 100) * (fontInfo.scale ?? 1));
   const posY = captionY(layout, hasWebcam, model.position);
   const base = assColor(model.base);
   const hl = assColor(model.highlight);
   const kw = assColor(keywordColor(model));
-  const font = FONTS[model.font]?.family ?? "Arial";
+  const font = fontInfo.family;
+  const bi = `${fontInfo.bold ? -1 : 0},${fontInfo.italic ? -1 : 0}`;
   const borderStyle = model.box ? 3 : 1;
   const outline = model.box ? 14 : model.outline ? 6 : 0;
   const shadow = model.box ? 0 : model.outline ? 3 : 2;
@@ -123,10 +125,10 @@ export function buildAss(
     "",
     "[V4+ Styles]",
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-    `Style: Clipei,${font},${size},${base},${base},${outlineColour},&H80000000&,0,0,0,0,100,100,1,0,${borderStyle},${outline},${shadow},5,60,60,0,1`,
+    `Style: Clipei,${font},${size},${base},${base},${outlineColour},&H80000000&,${bi},0,0,100,100,1,0,${borderStyle},${outline},${shadow},5,60,60,0,1`,
     `Style: Selo,Poppins ExtraBold,${vertical ? 40 : 30},&H40FFFFFF&,&H40FFFFFF&,&H80000000&,&H80000000&,0,0,0,0,100,100,1,0,1,3,0,2,40,40,40,1`,
     `Style: CTA,Poppins ExtraBold,${Math.round(size * 0.78)},${assColor(cta?.textColor ?? "#FFFFFF")},${assColor(cta?.textColor ?? "#FFFFFF")},${assColor(cta?.color ?? "#E3121F")},${assColor(cta?.color ?? "#E3121F")},0,0,0,0,100,100,1,0,3,${Math.round(size * 0.32)},0,5,60,60,0,1`,
-    `Style: Marca,${font},${Math.round(size * 0.45)},&H30FFFFFF&,&H30FFFFFF&,&H00000000&,&H80000000&,0,0,0,0,100,100,0,0,1,3,0,9,40,40,40,1`,
+    `Style: Marca,${font},${Math.round(size * 0.45)},&H30FFFFFF&,&H30FFFFFF&,&H00000000&,&H80000000&,${bi},0,0,100,100,0,0,1,3,0,9,40,40,40,1`,
     "",
     "[Events]",
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
