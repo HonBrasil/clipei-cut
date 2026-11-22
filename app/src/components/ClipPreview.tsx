@@ -8,7 +8,9 @@ import { fromOut, toOut, zoomAt, type ClipPlan } from "../lib/edit";
 import { fmtTime } from "../lib/format";
 import { loadCaptionFonts } from "../lib/native";
 import type { CaptionModel } from "../lib/settings";
-import type { Clip, Layout, Rect, VideoInfo, Word } from "../lib/types";
+import { captionBase, layoutSize, type Clip, type Layout, type Rect, type VideoInfo, type Word } from "../lib/types";
+import { ctaY, logoBox, type Cta } from "../lib/brand";
+import type { BrandKit } from "../lib/settings";
 
 type Box = { x: number; y: number; w: number; h: number };
 
@@ -34,8 +36,10 @@ export function ClipPreview(props: {
   watermark: boolean;
   seek?: { t: number; n: number }; // pedido de pulo (tempo do vídeo original)
   plan?: ClipPlan; // cortes, destaques, emojis e zoom (edição automática)
+  speakers?: [Rect, Rect] | null; // podcast
+  brand?: { kit: BrandKit; cta: Cta | null } | null; // kit da marca (planos pagos)
 }) {
-  const { video, clip, layout, webcam, model, censor, watermark, seek, plan } = props;
+  const { video, clip, layout, webcam, model, censor, watermark, seek, plan, speakers, brand } = props;
   const words = plan ? plan.words : props.words;
   const vRef = useRef<HTMLVideoElement>(null);
   const cRef = useRef<HTMLCanvasElement>(null);
@@ -43,10 +47,12 @@ export function ClipPreview(props: {
   const [playing, setPlaying] = useState(false);
   const src = useMemo(() => convertFileSrc(video.path), [video.path]);
 
-  const vertical = layout !== "wide";
-  const CW = vertical ? 540 : 960;
-  const CH = vertical ? 960 : 540;
-  const k = CW / (vertical ? 1080 : 1920);
+  const size = layoutSize(layout);
+  const vertical = size.h > size.w;
+  const square = size.h === size.w;
+  const k = vertical ? 0.5 : square ? 600 / 1080 : 0.5;
+  const CW = size.w * k;
+  const CH = size.h * k;
   const len = plan ? plan.outLen : clip.end - clip.start; // duração final
   const rawLen = clip.end - clip.start;
   const keeps = plan?.keeps;
@@ -108,6 +114,18 @@ export function ClipPreview(props: {
         if (layout === "wide") {
           const s = Math.min(CW / W, CH / H) * z;
           ctx.drawImage(v, (CW - W * s) / 2, (CH - H * s) / 2, W * s, H * s);
+        } else if ((layout === "podcast" || layout === "square") && speakers) {
+          // Podcast: duas pessoas (em cima/embaixo no 9:16, lado a lado no 1:1)
+          const side = layout === "square";
+          speakers.forEach((r, i) => {
+            const a = zoomed(cover({ x: r.x, y: r.y, w: Math.min(r.w, W), h: Math.min(r.h, H) }, side ? 0.5 : 1080 / 960));
+            if (side) ctx.drawImage(v, a.x, a.y, a.w, a.h, (i * CW) / 2, 0, CW / 2, CH);
+            else ctx.drawImage(v, a.x, a.y, a.w, a.h, 0, (i * CH) / 2, CW, CH / 2);
+          });
+        } else if (layout === "square") {
+          const sd = Math.min(W, H);
+          const a = zoomed({ x: (W - sd) / 2, y: (H - sd) / 2, w: sd, h: sd });
+          ctx.drawImage(v, a.x, a.y, a.w, a.h, 0, 0, CW, CH);
         } else if (hasCam && webcam) {
           const cam = zoomed(cover({ x: webcam.x, y: webcam.y, w: Math.min(webcam.w, W), h: Math.min(webcam.h, H) }, 1080 / 720));
           ctx.drawImage(v, cam.x, cam.y, cam.w, cam.h, 0, 0, CW, 720 * k);
@@ -128,7 +146,7 @@ export function ClipPreview(props: {
     };
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [layout, hasCam, webcam, video.width, video.height, clip.start, len, rawLen, keeps, zoomList, CW, CH, k]);
+  }, [layout, hasCam, webcam, speakers, video.width, video.height, clip.start, len, rawLen, keeps, zoomList, CW, CH, k]);
 
   function toggle() {
     const v = vRef.current;
@@ -157,7 +175,7 @@ export function ClipPreview(props: {
       }
     }
   }
-  const fontSize = model ? (vertical ? 82 : 66) * (model.size / 100) * k : 0;
+  const fontSize = model ? captionBase(layout) * (model.size / 100) * k : 0;
   const stroke = model?.outline && !model.box ? Math.max(1.2, fontSize * 0.075) : 0;
   const kwColor = model ? keywordColor(model) : "#FFD43B";
   const emojiNow = plan?.emojis.find((e) => t >= e.start && t < e.end) ?? null;
@@ -177,7 +195,7 @@ export function ClipPreview(props: {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "center" }}>
-      <div className="previewFrame" style={{ aspectRatio: `${CW} / ${CH}`, width: vertical ? "min(100%, 320px)" : "100%" }}>
+      <div className="previewFrame" style={{ aspectRatio: `${CW} / ${CH}`, width: vertical ? "min(100%, 320px)" : square ? "min(100%, 400px)" : "100%" }}>
         <canvas ref={cRef} width={CW} height={CH} style={{ width: "100%", height: "100%", display: "block" }} onClick={toggle} />
         {caption && model && (
           <div
@@ -223,6 +241,32 @@ export function ClipPreview(props: {
             {emojiNow.emoji}
           </span>
         )}
+        {brand?.kit.logo && (
+          (() => {
+            const b = logoBox(brand.kit, layout);
+            return (
+              <img
+                className="pvLogo"
+                src={convertFileSrc(brand.kit.logo)}
+                alt=""
+                style={{ left: `${(b.x / size.w) * 100}%`, top: `${(b.y / size.h) * 100}%`, width: `${(b.w / size.w) * 100}%`, opacity: brand.kit.logoOpacity / 100 }}
+              />
+            );
+          })()
+        )}
+        {brand?.cta && t >= len - brand.cta.seconds && (
+          <span
+            className="pvCta"
+            style={{
+              top: `${ctaY(model?.position ?? "meio") * 100}%`,
+              background: brand.cta.color,
+              color: brand.cta.textColor,
+              fontSize: `${((captionBase(layout) * 0.78 * (model ? model.size / 100 : 1) * k) / CW) * 100}cqw`,
+            }}
+          >
+            {brand.cta.text}
+          </span>
+        )}
         {model?.brand.trim() && (
           <span className="pvBrand" style={{ fontFamily: `clipei-${model.font}, sans-serif`, fontSize: `${((37 * (model.size / 100) * k) / CW) * 100}cqw` }}>
             {model.brand}
@@ -236,7 +280,7 @@ export function ClipPreview(props: {
         )}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, width: vertical ? "min(100%, 320px)" : "100%" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, width: vertical ? "min(100%, 320px)" : square ? "min(100%, 400px)" : "100%" }}>
         <button className="btn" style={{ minHeight: 36, padding: "0 12px" }} onClick={toggle} aria-label={playing ? "Pausar" : "Reproduzir"}>
           {playing ? "❚❚" : <Icon name="play" size={14} />}
         </button>

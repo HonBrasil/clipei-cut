@@ -1,6 +1,7 @@
 // Gera legendas animadas no formato ASS, que o FFmpeg grava direto no vídeo.
 // O visual vem do modelo de legenda escolhido pelo usuário.
-import type { Layout, Word } from "./types";
+import { captionBase, layoutSize, type Layout, type Word } from "./types";
+import { ctaY, type Cta } from "./brand";
 import { FONTS, type CaptionModel, type CaptionPos } from "./settings";
 
 /** Cor das palavras-chave: contrasta com a cor de destaque do modelo. */
@@ -82,6 +83,8 @@ export function groupWords(words: Word[], maxWords = 3, maxChars = 18, maxGap = 
 
 export function captionY(layout: Layout, hasWebcam: boolean, pos: CaptionPos): number {
   if (layout === "wide") return { topo: 150, meio: 560, baixo: 930 }[pos];
+  if (layout === "square") return { topo: 150, meio: 560, baixo: 910 }[pos];
+  if (layout === "podcast") return { topo: 300, meio: 960, baixo: 1650 }[pos];
   if (layout === "cam-top" && hasWebcam) return { topo: 830, meio: 1010, baixo: 1560 }[pos];
   return { topo: 420, meio: 1240, baixo: 1560 }[pos];
 }
@@ -95,11 +98,11 @@ export function buildAss(
   censor = false,
   watermark = false,
   keywords: Set<number> = new Set(), // índices (em words) das palavras-chave
+  cta: Cta | null = null, // chamada final do kit da marca
 ): string {
-  const vertical = layout !== "wide";
-  const playX = vertical ? 1080 : 1920;
-  const playY = vertical ? 1920 : 1080;
-  const size = Math.round((vertical ? 82 : 66) * (model.size / 100));
+  const { w: playX, h: playY } = layoutSize(layout);
+  const vertical = playY > playX;
+  const size = Math.round(captionBase(layout) * (model.size / 100));
   const posY = captionY(layout, hasWebcam, model.position);
   const base = assColor(model.base);
   const hl = assColor(model.highlight);
@@ -122,6 +125,7 @@ export function buildAss(
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
     `Style: Clipei,${font},${size},${base},${base},${outlineColour},&H80000000&,0,0,0,0,100,100,1,0,${borderStyle},${outline},${shadow},5,60,60,0,1`,
     `Style: Selo,Poppins ExtraBold,${vertical ? 40 : 30},&H40FFFFFF&,&H40FFFFFF&,&H80000000&,&H80000000&,0,0,0,0,100,100,1,0,1,3,0,2,40,40,40,1`,
+    `Style: CTA,Poppins ExtraBold,${Math.round(size * 0.78)},${assColor(cta?.textColor ?? "#FFFFFF")},${assColor(cta?.textColor ?? "#FFFFFF")},${assColor(cta?.color ?? "#E3121F")},${assColor(cta?.color ?? "#E3121F")},0,0,0,0,100,100,1,0,3,${Math.round(size * 0.32)},0,5,60,60,0,1`,
     `Style: Marca,${font},${Math.round(size * 0.45)},&H30FFFFFF&,&H30FFFFFF&,&H00000000&,&H80000000&,0,0,0,0,100,100,0,0,1,3,0,9,40,40,40,1`,
     "",
     "[Events]",
@@ -169,6 +173,13 @@ export function buildAss(
       lines.push(`Dialogue: 0,${ts(start)},${ts(end)},Clipei,,0,0,0,,{${pos}${groupEnter}}${text}`);
     });
   });
+
+  if (cta) {
+    const from = Math.max(0, clipLen - cta.seconds);
+    const y = Math.round(playY * ctaY(model.position));
+    const pop = "\\fscx55\\fscy55\\t(0,160,\\fscx108\\fscy108)\\t(160,260,\\fscx100\\fscy100)";
+    lines.push(`Dialogue: 3,${ts(from)},${ts(clipLen)},CTA,,0,0,0,,{\\an5\\pos(${playX / 2},${y})${pop}}${clean(cta.text)}`);
+  }
 
   if (model.brand.trim()) {
     const b = clean(model.brand).slice(0, 40);

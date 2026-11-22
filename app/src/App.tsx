@@ -22,6 +22,7 @@ import { useOnline } from "./lib/online";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { OfflineBanner } from "./components/OfflineBanner";
 import { Tour } from "./components/Tour";
+import { Brand } from "./screens/Brand";
 import { useSettings } from "./lib/settings";
 
 export function App() {
@@ -146,6 +147,7 @@ export function App() {
           />
         )}
         {screen === "captions" && <Captions />}
+        {screen === "brand" && <Brand paid={paid} onPlans={() => setScreen("plans")} />}
         {screen === "exports" && <Exports />}
         {screen === "settings" && (
           <Config

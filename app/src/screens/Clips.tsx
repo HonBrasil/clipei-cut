@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { join } from "@tauri-apps/api/path";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { Icon } from "../components/Icon";
-import { detectEncoder, encoderLabel, exportClip, workDir, type Encoder } from "../lib/ffmpeg";
+import { CancelledError, detectEncoder, encoderLabel, exportClip, workDir, type Encoder } from "../lib/ffmpeg";
+import { brandActive, brandedModel, ctaOf, logoBox } from "../lib/brand";
 import { buildAss, captionY, censorIntervals } from "../lib/ass";
 import { ensureDir, prepareEmojis, prepareFonts, revealPath } from "../lib/native";
 import { EMOJIS, planClip, zoomExpr as zoomExprOf, type EditOpts } from "../lib/edit";
@@ -12,9 +13,12 @@ import { CaptionEditor } from "../components/CaptionEditor";
 import { ClipPreview } from "../components/ClipPreview";
 import { openSupport } from "../lib/support";
 import { fmtTime, slugify } from "../lib/format";
-import type { Clip, Project } from "../lib/types";
+import { captionBase, layoutForFormat, layoutSize, type Clip, type Format, type Project } from "../lib/types";
 
-type ExportState = { running: boolean; current: number; total: number; pct: number; done: string[]; error?: string };
+type Job = { id: string; clipId: string; title: string; format: Format; status: "fila" | "exportando" | "pronto" | "erro" | "cancelado"; pct: number; path?: string; error?: string };
+type ExportState = { running: boolean; jobs: Job[] };
+const FORMAT_LABEL: Record<Format, string> = { "9x16": "9:16", "1x1": "1:1", "16x9": "16:9" };
+const FORMAT_HINT: Record<Format, string> = { "9x16": "TikTok, Reels, Shorts", "1x1": "Feed do Instagram", "16x9": "YouTube" };
 
 export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (p: Project) => Project) => void; onBack: () => void; onPlans: () => void }) {
   const { project, paid, onChange, onBack, onPlans } = props;
@@ -26,7 +30,19 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
   const [playing, setPlaying] = useState<Clip | null>(clips[0] ?? null);
   const [captions, setCaptions] = useState(Boolean(project.transcript));
   const [encoder, setEncoder] = useState<Encoder | null>(null);
-  const [exp, setExp] = useState<ExportState>({ running: false, current: 0, total: 0, pct: 0, done: [] });
+  const [exp, setExp] = useState<ExportState>({ running: false, jobs: [] });
+  const abortRef = useRef<AbortController | null>(null);
+  const formats: Format[] = settings.formats?.length ? settings.formats : ["9x16"];
+  const [pvFormat, setPvFormat] = useState<Format>(formats[0]);
+  const toggleFormat = (f: Format) => {
+    const next = formats.includes(f) ? formats.filter((x) => x !== f) : [...formats, f];
+    if (!next.length) return; // pelo menos um formato
+    const ordered = (["9x16", "1x1", "16x9"] as Format[]).filter((x) => next.includes(x));
+    update({ formats: ordered });
+    if (!ordered.includes(pvFormat)) setPvFormat(ordered[0]);
+  };
+  const projectLayout = project.layout ?? "cam-top";
+  const layoutOf = (f: Format) => layoutForFormat(f, projectLayout, Boolean(project.webcam));
   const [more, setMore] = useState<{ busy: boolean; msg?: string; error?: boolean }>({ busy: false });
   const [moreCount, setMoreCount] = useState(5);
   const [panel, setPanel] = useState<{ kind: "captions" | "post"; id: string } | null>(null);
@@ -144,9 +160,14 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
   }
 
   async function runExport() {
-    const list = clips.filter((c) => selected.has(c.id)).sort((a, b) => a.start - b.start);
+    const list = clips.filter((c) => selected.has(c.id)).sort((x, y) => x.start - y.start);
     if (!list.length || !encoder) return;
-    setExp({ running: true, current: 0, total: list.length, pct: 0, done: [] });
+    const jobs: Job[] = list.flatMap((c) => formats.map((f) => ({ id: `${c.id}-${f}`, clipId: c.id, title: c.title, format: f, status: "fila" as const, pct: 0 })));
+    const setJob = (id: string, patch: Partial<Job>) => setExp((e) => ({ ...e, jobs: e.jobs.map((j) => (j.id === id ? { ...j, ...patch } : j)) }));
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setExp({ running: true, jobs });
+    const done: string[] = [];
     try {
       const base = project.video.name.replace(/\.[^.]+$/, "");
       const outDir = await join(await exportDirOf(settings), slugify(base));
@@ -154,55 +175,78 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
       const wdir = await workDir("export");
       await prepareFonts(await join(wdir, "fonts"));
       if (fx.emojis) await prepareEmojis(await join(wdir, "emoji")).catch(() => {});
-      const model = models.find((m) => m.id === modelId) ?? models[0];
-      const done: string[] = [];
-      for (let i = 0; i < list.length; i++) {
-        const clip = list[i];
-        setExp((e) => ({ ...e, current: i + 1, pct: 0 }));
-        const plan = planFor(clip);
-        const words = plan.words; // já na linha do tempo final (com os cortes)
-        let assFile: string | null = null;
-        const withCaptions = captions && Boolean(project.transcript);
-        if (withCaptions || !paid) {
-          // No plano Grátis vai o selo "Feito com Clipei Cut", mesmo sem legenda
-          assFile = `clip_${i}.ass`;
-          const ass = buildAss(withCaptions ? words : [], plan.outLen, project.layout ?? "cam-top", Boolean(project.webcam), model, settings.censor, !paid, withCaptions ? plan.keywords : new Set());
-          await writeTextFile(await join(wdir, assFile), ass);
+      const kit = settings.brand;
+      const branded = brandActive(kit, paid);
+      const model = brandedModel(models.find((m) => m.id === modelId) ?? models[0], kit, paid);
+      const cta = ctaOf(kit, paid);
+      const withCaptions = captions && Boolean(project.transcript);
+
+      for (let n = 0; n < jobs.length; n++) {
+        const job = jobs[n];
+        if (ctrl.signal.aborted) break;
+        const clip = list.find((c) => c.id === job.clipId)!;
+        const i = list.indexOf(clip);
+        const layout = layoutOf(job.format);
+        const { w: VW } = layoutSize(layout);
+        setJob(job.id, { status: "exportando", pct: 0 });
+        try {
+          const plan = planFor(clip);
+          const words = plan.words; // já na linha do tempo final (com os cortes)
+          let assFile: string | null = null;
+          if (withCaptions || !paid || cta) {
+            // No plano Grátis vai o selo "Feito com Clipei Cut", mesmo sem legenda
+            assFile = `clip_${n}.ass`;
+            const ass = buildAss(withCaptions ? words : [], plan.outLen, layout, Boolean(project.webcam), model, settings.censor, !paid, withCaptions ? plan.keywords : new Set(), cta);
+            await writeTextFile(await join(wdir, assFile), ass);
+          }
+          const outPath = await join(outDir, fileName(settings.fileNaming, i, clip.title, base, job.format));
+          const speakers = projectLayout === "podcast" && (layout === "podcast" || layout === "square") ? project.speakers ?? null : null;
+          await exportClip({
+            video: project.video,
+            clip,
+            layout,
+            webcam: layout === "cam-top" ? project.webcam : null,
+            workDir: wdir,
+            assFile,
+            outPath,
+            encoder,
+            quality: paid ? settings.quality : "720p30",
+            beeps: settings.censor ? censorIntervals(words) : [],
+            signal: ctrl.signal,
+            fx: {
+              keeps: plan.cut ? plan.keeps : undefined,
+              zoom: plan.zoom,
+              zoomExpr: plan.zoom.length ? zoomExprOf(plan.zoom) : undefined,
+              speakers,
+              logo: branded && kit.logo ? { file: kit.logo, ...logoBox(kit, layout), opacity: kit.logoOpacity } : null,
+              emojis: plan.emojis.map((e) => {
+                const size = layout === "wide" ? 110 : 140;
+                const font = captionBase(layout) * (model.size / 100);
+                const y = captionY(layout, Boolean(project.webcam), model.position) - font - 75 - size / 2;
+                return { file: `emoji/${EMOJIS[e.emoji]}.png`, start: e.start, end: e.end, x: VW / 2 - size / 2, y: Math.max(20, y), size };
+              }),
+            },
+            onProgress: (pct) => setJob(job.id, { pct }),
+          });
+          done.push(outPath);
+          setJob(job.id, { status: "pronto", pct: 1, path: outPath });
+        } catch (err) {
+          if (err instanceof CancelledError || ctrl.signal.aborted) {
+            setJob(job.id, { status: "cancelado" });
+            break;
+          }
+          setJob(job.id, { status: "erro", error: err instanceof Error ? err.message : String(err) });
         }
-        const outPath = await join(outDir, fileName(settings.fileNaming, i, clip.title, base, project.layout === "wide" ? "16x9" : "9x16"));
-        await exportClip({
-          video: project.video,
-          clip,
-          layout: project.layout ?? "cam-top",
-          webcam: project.layout === "cam-top" ? project.webcam : null,
-          workDir: wdir,
-          assFile,
-          outPath,
-          encoder,
-          quality: paid ? settings.quality : "720p30",
-          beeps: settings.censor ? censorIntervals(words) : [],
-          fx: {
-            keeps: plan.cut ? plan.keeps : undefined,
-            zoom: plan.zoom,
-            zoomExpr: plan.zoom.length ? zoomExprOf(plan.zoom) : undefined,
-            emojis: plan.emojis.map((e) => {
-              const wide = project.layout === "wide";
-              const size = wide ? 110 : 140;
-              const font = (wide ? 66 : 82) * (model.size / 100);
-              const y = captionY(project.layout ?? "cam-top", Boolean(project.webcam), model.position) - font - 75 - size / 2;
-              return { file: `emoji/${EMOJIS[e.emoji]}.png`, start: e.start, end: e.end, x: (wide ? 960 : 540) - size / 2, y: Math.max(20, y), size };
-            }),
-          },
-          onProgress: (pct) => setExp((e) => ({ ...e, pct })),
-        });
-        done.push(outPath);
-        setExp((e) => ({ ...e, done: [...done] }));
       }
-      setExp((e) => ({ ...e, running: false }));
-      onChange((p) => ({ ...p, exported: Array.from(new Set([...(p.exported ?? []), ...done])) }));
-      if (settings.openFolderWhenDone && done[0]) revealPath(done[0]).catch(() => {});
     } catch (err) {
-      setExp((e) => ({ ...e, running: false, error: err instanceof Error ? err.message : String(err) }));
+      setExp((e) => ({ ...e, jobs: e.jobs.map((j) => (j.status === "fila" || j.status === "exportando" ? { ...j, status: "erro", error: err instanceof Error ? err.message : String(err) } : j)) }));
+    }
+    // O que sobrou na fila depois de cancelar fica marcado como cancelado
+    setExp((e) => ({ running: false, jobs: e.jobs.map((j) => (j.status === "fila" || j.status === "exportando" ? { ...j, status: "cancelado" } : j)) }));
+    abortRef.current = null;
+    if (done.length) {
+      onChange((p) => ({ ...p, exported: Array.from(new Set([...(p.exported ?? []), ...done])) }));
+      if (settings.openFolderWhenDone && !ctrl.signal.aborted) revealPath(done[0]).catch(() => {});
     }
   }
 
@@ -222,8 +266,21 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
 
       <div className="toolbar">
         <span className="small" style={{ color: "var(--soft)" }}>
-          <b style={{ color: "var(--text)" }}>{selected.size} selecionados</b> · clique no quadrado para marcar · clique no título para editar
+          <b style={{ color: "var(--text)" }}>{selected.size} selecionados</b>
+          {" · "}
+          <button className="linkBtn small" onClick={() => setSelected(selected.size === clips.length ? new Set() : new Set(clips.map((c) => c.id)))}>
+            {selected.size === clips.length ? "Limpar seleção" : "Selecionar todos"}
+          </button>
         </span>
+        <div className="fmtPick" role="group" aria-label="Formatos para exportar">
+          <span className="muted small">Formatos</span>
+          {(["9x16", "1x1", "16x9"] as Format[]).map((f) => (
+            <button key={f} className={`fmtBtn ${formats.includes(f) ? "on" : ""}`} aria-pressed={formats.includes(f)} title={FORMAT_HINT[f]} onClick={() => toggleFormat(f)}>
+              <span className={`fmtIcon f${f}`} aria-hidden />
+              {FORMAT_LABEL[f]}
+            </button>
+          ))}
+        </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
           <label className="small" style={{ display: "flex", gap: 8, alignItems: "center", color: "var(--soft)" }} title={project.transcript ? "" : "Este projeto não tem mais a transcrição salva"}>
             <input type="checkbox" checked={captions} disabled={!project.transcript} onChange={(e) => setCaptions(e.target.checked)} /> Legenda
@@ -239,7 +296,7 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
             <input type="checkbox" checked={settings.censor} onChange={(e) => update({ censor: e.target.checked })} /> Bipar palavrões
           </label>
           <button className="btn primary" disabled={!selected.size || exp.running || !encoder} onClick={runExport}>
-            <Icon name="download" size={16} /> Exportar {selected.size || ""}
+            <Icon name="download" size={16} /> Exportar {selected.size * formats.length || ""} {selected.size * formats.length === 1 ? "vídeo" : "vídeos"}
           </button>
         </div>
       </div>
@@ -304,41 +361,7 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
         </div>
       )}
 
-      {(exp.running || exp.done.length > 0 || exp.error) && (
-        <section className="card ai" style={{ display: "flex", flexDirection: "column", gap: 10 }} aria-live="polite">
-          {exp.running ? (
-            <>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
-                <span>
-                  Exportando clipe {exp.current} de {exp.total}
-                </span>
-                <span style={{ color: "var(--purple-text)", fontWeight: 700 }}>
-                  {Math.round(exp.pct * 100)}% · {encoder ? encoderLabel(encoder) : ""}
-                </span>
-              </div>
-              <div className="bar">
-                <div style={{ width: `${((exp.current - 1 + exp.pct) / exp.total) * 100}%` }} />
-              </div>
-            </>
-          ) : exp.error ? (
-            <div className="error">
-              Não consegui exportar: {exp.error}
-              <div style={{ marginTop: 10 }}>
-                <button className="btn" onClick={() => openSupport(`Erro ao exportar: ${exp.error}`)}>
-                  Pedir ajuda no WhatsApp
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
-              <span className="badge ok">{exp.done.length} clipes salvos na pasta de exportação</span>
-              <button className="btn primary" onClick={() => revealPath(exp.done[0])}>
-                <Icon name="folder" size={16} /> Abrir pasta
-              </button>
-            </div>
-          )}
-        </section>
-      )}
+      {exp.jobs.length > 0 && <ExportQueue exp={exp} encoder={encoder} onCancel={() => abortRef.current?.abort()} onClose={() => setExp({ running: false, jobs: [] })} />}
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "flex-start" }}>
         <section className="clips" style={{ flex: "3 1 520px", minWidth: 0 }} aria-label="Clipes sugeridos">
@@ -436,15 +459,26 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
         </section>
 
         <aside className="player" style={{ flex: "2 1 340px", minWidth: 0 }} aria-label="Prévia">
+          {current && formats.length > 1 && (
+            <div className="seg" role="tablist" aria-label="Formato da prévia" style={{ alignSelf: "center" }}>
+              {formats.map((f) => (
+                <button key={f} role="tab" aria-selected={pvFormat === f} className={pvFormat === f ? "on" : ""} onClick={() => setPvFormat(f)}>
+                  {FORMAT_LABEL[f]}
+                </button>
+              ))}
+            </div>
+          )}
           {current ? (
             <ClipPreview
               video={project.video}
               clip={current}
-              layout={project.layout ?? "cam-top"}
-              webcam={project.layout === "cam-top" ? project.webcam : null}
+              layout={layoutOf(formats.includes(pvFormat) ? pvFormat : formats[0])}
+              webcam={layoutOf(formats.includes(pvFormat) ? pvFormat : formats[0]) === "cam-top" ? project.webcam : null}
+              speakers={projectLayout === "podcast" ? project.speakers ?? null : null}
+              brand={brandActive(settings.brand, paid) ? { kit: settings.brand, cta: ctaOf(settings.brand, paid) } : null}
               words={project.transcript ? wordsForClip(project.transcript.words, current) : []}
               plan={currentPlan}
-              model={captions && project.transcript ? previewModel : null}
+              model={captions && project.transcript ? brandedModel(previewModel, settings.brand, paid) : null}
               censor={settings.censor}
               watermark={!paid}
               seek={seekReq}
@@ -567,5 +601,64 @@ function ViralScore({ score }: { score: number }) {
       <b>{score >= 85 ? "🔥 " : ""}{score}</b>
       <span>{label}</span>
     </span>
+  );
+}
+
+const STATUS_LABEL: Record<Job["status"], string> = { fila: "Na fila", exportando: "Exportando", pronto: "Pronto", erro: "Erro", cancelado: "Cancelado" };
+
+/** Fila de exportação: um item por clipe e formato, com progresso e cancelar. */
+function ExportQueue({ exp, encoder, onCancel, onClose }: { exp: ExportState; encoder: Encoder | null; onCancel: () => void; onClose: () => void }) {
+  const total = exp.jobs.length;
+  const ready = exp.jobs.filter((j) => j.status === "pronto");
+  const errors = exp.jobs.filter((j) => j.status === "erro");
+  const progress = exp.jobs.reduce((n, j) => n + (j.status === "pronto" ? 1 : j.status === "exportando" ? j.pct : 0), 0) / Math.max(1, total);
+  return (
+    <section className="card ai queue" aria-live="polite" aria-label="Fila de exportação">
+      <div className="queueHead">
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <b>{exp.running ? `Exportando ${ready.length + 1 > total ? total : ready.length + 1} de ${total}` : `${ready.length} de ${total} vídeos prontos`}</b>
+          <span className="muted small">
+            {exp.running ? `${Math.round(progress * 100)}% · ${encoder ? encoderLabel(encoder) : ""} · pode continuar usando o app` : errors.length ? `${errors.length} com erro` : "Salvos na pasta de exportação"}
+          </span>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {exp.running ? (
+            <button className="btn" onClick={onCancel}>
+              Cancelar
+            </button>
+          ) : (
+            <>
+              {ready[0]?.path && (
+                <button className="btn primary" onClick={() => revealPath(ready[0].path!)}>
+                  <Icon name="folder" size={16} /> Abrir pasta
+                </button>
+              )}
+              {errors.length > 0 && (
+                <button className="btn" onClick={() => openSupport(`Erro ao exportar: ${errors[0].error}`)}>
+                  Pedir ajuda
+                </button>
+              )}
+              <button className="btn" onClick={onClose}>
+                Fechar
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+      <div className="bar">
+        <div style={{ width: `${progress * 100}%` }} />
+      </div>
+      <ul className="queueList">
+        {exp.jobs.map((j) => (
+          <li key={j.id} className={`queueItem ${j.status}`} title={j.error ?? ""}>
+            <span className="qFmt">{FORMAT_LABEL[j.format]}</span>
+            <span className="qTitle">{j.title}</span>
+            <span className="qStatus">
+              {j.status === "exportando" ? `${Math.round(j.pct * 100)}%` : STATUS_LABEL[j.status]}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

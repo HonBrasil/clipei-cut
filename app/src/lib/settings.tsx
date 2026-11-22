@@ -59,6 +59,35 @@ export type Settings = {
   autoUpdate: boolean;
   tourDone: boolean;
   fx: { cutSilences: boolean; cutFillers: boolean; emojis: boolean; keywords: boolean; zoom: boolean };
+  formats: Array<"9x16" | "1x1" | "16x9">; // formatos exportados de uma vez
+  brand: BrandKit;
+};
+
+export type LogoPos = "tl" | "tr" | "bl" | "br";
+export type BrandKit = {
+  on: boolean;
+  logo: string | null; // caminho da logo copiada para a pasta do app
+  logoAspect: number; // largura / altura da imagem
+  logoPos: LogoPos;
+  logoSize: number; // % da largura do vídeo (8 a 30)
+  logoOpacity: number; // 30 a 100
+  color: string; // cor principal da marca
+  textColor: string;
+  captionColor: boolean; // usa a cor da marca no destaque da legenda
+  cta: { on: boolean; text: string; seconds: number };
+};
+
+export const DEFAULT_BRAND: BrandKit = {
+  on: true,
+  logo: null,
+  logoAspect: 1,
+  logoPos: "tr",
+  logoSize: 16,
+  logoOpacity: 90,
+  color: "#E3121F",
+  textColor: "#FFFFFF",
+  captionColor: false,
+  cta: { on: true, text: "Siga para mais!", seconds: 3 },
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -75,6 +104,8 @@ export const DEFAULT_SETTINGS: Settings = {
   autoUpdate: true,
   tourDone: false,
   fx: { cutSilences: true, cutFillers: true, emojis: true, keywords: true, zoom: true },
+  formats: ["9x16"],
+  brand: DEFAULT_BRAND,
 };
 
 export function allModels(s: Settings): CaptionModel[] {
@@ -103,7 +134,13 @@ async function load(): Promise<Settings> {
   try {
     const f = await file();
     if (!(await exists(f))) return DEFAULT_SETTINGS;
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(await readTextFile(f)) };
+    const saved = JSON.parse(await readTextFile(f));
+    return {
+      ...DEFAULT_SETTINGS,
+      ...saved,
+      fx: { ...DEFAULT_SETTINGS.fx, ...saved.fx },
+      brand: { ...DEFAULT_BRAND, ...saved.brand, cta: { ...DEFAULT_BRAND.cta, ...saved.brand?.cta } },
+    };
   } catch {
     return DEFAULT_SETTINGS;
   }

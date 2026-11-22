@@ -2,7 +2,7 @@
 import { Command } from "@tauri-apps/plugin-shell";
 import { readTextFile, mkdir, remove, exists } from "@tauri-apps/plugin-fs";
 import { appCacheDir, join } from "@tauri-apps/api/path";
-import type { Clip, Layout, Rect, VideoInfo } from "./types";
+import { layoutSize, type Clip, type Layout, type Rect, type VideoInfo } from "./types";
 import type { Quality } from "./settings";
 
 type RunResult = { code: number | null; stdout: string; stderr: string };
@@ -18,7 +18,9 @@ async function runWithProgress(
   expectedSec: number,
   onProgress?: (p: number) => void,
   cwd?: string,
+  signal?: AbortSignal,
 ): Promise<void> {
+  if (signal?.aborted) throw new CancelledError();
   const cmd = Command.sidecar("binaries/ffmpeg", ["-hide_banner", "-nostats", "-progress", "pipe:1", ...args], cwd ? { cwd } : undefined);
   let errTail = "";
   await new Promise<void>((resolve, reject) => {
@@ -30,7 +32,8 @@ async function runWithProgress(
       errTail = (errTail + "\n" + line).slice(-4000);
     });
     cmd.on("close", ({ code }) => {
-      if (code === 0) {
+      if (signal?.aborted) reject(new CancelledError());
+      else if (code === 0) {
         onProgress?.(1);
         resolve();
       } else {
@@ -39,8 +42,17 @@ async function runWithProgress(
       }
     });
     cmd.on("error", (e) => reject(new Error(String(e))));
-    cmd.spawn().catch(reject);
+    cmd
+      .spawn()
+      .then((child) => signal?.addEventListener("abort", () => child.kill().catch(() => {}), { once: true }))
+      .catch(reject);
   });
+}
+
+export class CancelledError extends Error {
+  constructor() {
+    super("Exportação cancelada.");
+  }
 }
 
 function lastLine(s: string): string {
@@ -178,6 +190,8 @@ export type Effects = {
   zoom?: Array<[number, number]>; // momentos de zoom (linha do tempo final)
   zoomExpr?: string; // curva de zoom pronta (expressão do FFmpeg)
   emojis?: EmojiOverlay[]; // emojis por cima do vídeo (linha do tempo final)
+  speakers?: [Rect, Rect] | null; // podcast: área de cada pessoa
+  logo?: { file: string; x: number; y: number; w: number; opacity: number } | null; // kit da marca
 };
 
 /** Monta o filtro de imagem para cada layout. Saída 1080x1920 (vertical) ou 1920x1080. */
@@ -192,7 +206,8 @@ export function buildFilter(
   const W = video.width;
   const H = video.height;
   const fps = quality === "1080p60" ? (video.fps > 60.5 ? ",fps=60" : "") : video.fps > 30.5 ? ",fps=30" : "";
-  const down = quality === "720p30" ? (layout === "wide" ? ",scale=1280:720" : ",scale=720:1280") : "";
+  const size = layoutSize(layout);
+  const down = quality === "720p30" ? `,scale=${(size.w * 2) / 3}:${(size.h * 2) / 3}` : "";
 
   // Cortes: mantém só os trechos escolhidos e junta tudo sem buracos
   const cut = fx.keeps && fx.keeps.length > 0;
@@ -205,6 +220,25 @@ export function buildFilter(
   let base: string;
   if (layout === "wide") {
     base = `${src}scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1${zoom(1920, 1080)}[base]`;
+  } else if (layout === "square" && fx.speakers) {
+    // Podcast em 1:1: as duas pessoas lado a lado
+    const [a, b] = fx.speakers.map((r) => coverRect(r, 540 / 1080, W, H));
+    base =
+      `${src}split=2[p1][p2];` +
+      `[p1]crop=${a.w}:${a.h}:${a.x}:${a.y},scale=540:1080,setsar=1${zoom(540, 1080)}[s1];` +
+      `[p2]crop=${b.w}:${b.h}:${b.x}:${b.y},scale=540:1080,setsar=1${zoom(540, 1080)}[s2];` +
+      `[s1][s2]hstack=inputs=2[base]`;
+  } else if (layout === "square") {
+    const side = even(Math.min(W, H));
+    base = `${src}crop=${side}:${side}:${even((W - side) / 2)}:${even((H - side) / 2)},scale=1080:1080,setsar=1${zoom(1080, 1080)}[base]`;
+  } else if (layout === "podcast" && fx.speakers) {
+    // Podcast em 9:16: uma pessoa em cima e outra embaixo
+    const [a, b] = fx.speakers.map((r) => coverRect(r, 1080 / 960, W, H));
+    base =
+      `${src}split=2[p1][p2];` +
+      `[p1]crop=${a.w}:${a.h}:${a.x}:${a.y},scale=1080:960,setsar=1${zoom(1080, 960)}[s1];` +
+      `[p2]crop=${b.w}:${b.h}:${b.x}:${b.y},scale=1080:960,setsar=1${zoom(1080, 960)}[s2];` +
+      `[s1][s2]vstack=inputs=2[base]`;
   } else if (layout === "cam-top" && webcam) {
     const cw = even(Math.min(webcam.w, W));
     const ch = even(Math.min(webcam.h, H));
@@ -233,15 +267,39 @@ export function buildFilter(
     chain += `;${cur}subtitles=${assFile}:fontsdir=fonts[sb]`;
     cur = "[sb]";
   }
-  // Emojis por cima da legenda (entradas 1, 2, 3… depois do vídeo)
+  // Logo da marca (primeira entrada extra, se houver)
+  let next = 1;
+  if (fx.logo) {
+    chain +=
+      `;[${next}:v]scale=${even(fx.logo.w)}:-2,format=rgba,colorchannelmixer=aa=${(fx.logo.opacity / 100).toFixed(2)}[lg]` +
+      `;${cur}[lg]overlay=x=${Math.round(fx.logo.x)}:y=${Math.round(fx.logo.y)}[lo]`;
+    cur = "[lo]";
+    next++;
+  }
+  // Emojis por cima da legenda (as entradas seguintes)
   (fx.emojis ?? []).forEach((e, i) => {
     chain +=
-      `;[${i + 1}:v]scale=${e.size}:${e.size}[em${i}]` +
+      `;[${next + i}:v]scale=${e.size}:${e.size}[em${i}]` +
       `;${cur}[em${i}]overlay=x=${Math.round(e.x)}:y=${Math.round(e.y)}:enable=between(t\\,${e.start.toFixed(2)}\\,${e.end.toFixed(2)})[o${i}]`;
     cur = `[o${i}]`;
   });
   chain += `;${cur}null${down}${fps}[v]`;
   return chain;
+}
+
+/** Área de recorte com a proporção pedida, centrada na área da pessoa e dentro do vídeo. */
+function coverRect(r: Rect, aspect: number, W: number, H: number): Rect {
+  let w = r.w;
+  let h = r.h;
+  if (w / h > aspect) w = h * aspect;
+  else h = w / aspect;
+  w = Math.min(w, W);
+  h = Math.min(h, H);
+  const cx = r.x + r.w / 2;
+  const cy = r.y + r.h / 2;
+  const x = Math.max(0, Math.min(W - w, cx - w / 2));
+  const y = Math.max(0, Math.min(H - h, cy - h / 2));
+  return { x: even(x), y: even(y), w: even(w), h: even(h) };
 }
 
 function selectFrom(keeps: Array<[number, number]>): string {
@@ -260,6 +318,7 @@ export async function exportClip(opts: {
   quality?: Quality;
   beeps?: Array<[number, number]>; // trechos para bipar (linha do tempo final)
   fx?: Effects;
+  signal?: AbortSignal;
   onProgress?: (p: number) => void;
 }): Promise<void> {
   const { video, clip, layout, webcam, assFile, outPath, encoder, onProgress } = opts;
@@ -281,7 +340,7 @@ export async function exportClip(opts: {
       audioMap = ["-map", "[a]"];
     }
   }
-  const emojiInputs = (fx.emojis ?? []).flatMap((e) => ["-i", e.file]);
+  const emojiInputs = [...(fx.logo ? ["-i", fx.logo.file] : []), ...(fx.emojis ?? []).flatMap((e) => ["-i", e.file])];
   const args = [
     "-y",
     "-ss", clip.start.toFixed(3), "-t", len.toFixed(3), "-i", video.path,
@@ -293,10 +352,10 @@ export async function exportClip(opts: {
     outPath,
   ];
   try {
-    await runWithProgress(args, outLen, onProgress, opts.workDir);
+    await runWithProgress(args, outLen, onProgress, opts.workDir, opts.signal);
   } catch (err) {
     // Se a placa de vídeo falhar, tenta de novo pelo processador
-    if (encoder !== "libx264") {
+    if (encoder !== "libx264" && !(err instanceof CancelledError)) {
       localStorage.setItem(ENCODER_KEY, "libx264");
       await exportClip({ ...opts, encoder: "libx264" });
       return;

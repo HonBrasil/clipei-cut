@@ -65,6 +65,33 @@ fn prepare_emojis(app: tauri::AppHandle, dst: String) -> Result<(), String> {
     files::copy_with_ext(&src, Path::new(&dst), "png")
 }
 
+/// Copia a logo escolhida para a pasta do app (só imagens, até 5 MB) e devolve o novo caminho.
+#[tauri::command]
+fn import_logo(app: tauri::AppHandle, src: String) -> Result<String, String> {
+    let src = Path::new(&src);
+    let ext = src
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .ok_or("Arquivo sem extensão.")?;
+    if !["png", "jpg", "jpeg", "webp"].contains(&ext.as_str()) {
+        return Err("Use uma imagem PNG, JPG ou WEBP.".into());
+    }
+    let size = std::fs::metadata(src).map_err(|e| e.to_string())?.len();
+    if size > 5 * 1024 * 1024 {
+        return Err("A imagem passa de 5 MB. Use uma versão menor.".into());
+    }
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?.join("brand");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let dst = dir.join(format!("logo-{stamp}.{ext}"));
+    std::fs::copy(src, &dst).map_err(|e| e.to_string())?;
+    Ok(dst.to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 fn open_path(app: tauri::AppHandle, path: String) -> Result<(), String> {
     app.opener().open_path(path, None::<&str>).map_err(|e| e.to_string())
@@ -99,6 +126,7 @@ pub fn run() {
             clear_temp,
             prepare_fonts,
             prepare_emojis,
+            import_logo,
             open_path,
             reveal_path
         ])

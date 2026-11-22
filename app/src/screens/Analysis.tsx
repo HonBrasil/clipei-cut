@@ -68,7 +68,8 @@ export function Analysis(props: {
             ...p,
             frameUrl: det.frameUrl,
             webcam: det.webcam,
-            layout: det.webcam ? "cam-top" : "game-only",
+            speakers: det.speakers,
+            layout: det.speakers && (det.faceCam || !det.webcam) ? "podcast" : det.webcam ? "cam-top" : "game-only",
           }));
           set("detect", { status: "done" });
         }
@@ -144,9 +145,21 @@ export function Analysis(props: {
             <CamEditor
               frameUrl={project.frameUrl}
               video={{ w: video.width, h: video.height }}
-              rect={layout === "cam-top" ? project.webcam ?? null : null}
-              confidence={confidence}
-              onRect={(r) => onChange((p) => ({ ...p, webcam: r }))}
+              boxes={
+                layout === "podcast" && project.speakers
+                  ? project.speakers.map((rect, i) => ({ rect, label: i === 0 ? "Pessoa 1 · em cima" : "Pessoa 2 · embaixo" }))
+                  : layout === "cam-top" && project.webcam
+                    ? [{ rect: project.webcam, label: `Webcam${confidence > 0 ? ` · ${Math.round(confidence * 100)}%` : ""}` }]
+                    : []
+              }
+              aspect={layout === "podcast" ? 1080 / 960 : undefined}
+              onRect={(i, r) =>
+                onChange((p) =>
+                  layout === "podcast" && p.speakers
+                    ? { ...p, speakers: (i === 0 ? [r, p.speakers[1]] : [p.speakers[0], r]) as [Rect, Rect] }
+                    : { ...p, webcam: r },
+                )
+              }
             />
           ) : (
             <div className="frame" style={{ aspectRatio: `${video.width} / ${video.height}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -154,7 +167,9 @@ export function Analysis(props: {
             </div>
           )}
           <span className="muted small">
-            {layout !== "cam-top"
+            {layout === "podcast"
+              ? "Arraste cada quadro para a pessoa certa. A pessoa 1 fica em cima e a 2 embaixo no vídeo final."
+              : layout !== "cam-top"
               ? "Nesse formato a webcam não é usada."
               : project.webcam
                 ? "Arraste o retângulo para ajustar a área da câmera. Use o canto branco para mudar o tamanho."
@@ -211,6 +226,13 @@ export function Analysis(props: {
             <div className="layouts">
               <LayoutBtn id="cam-top" cur={layout} name="Cam em cima" desc="Webcam no topo e jogo embaixo" onPick={(l) => onChange((p) => ({ ...p, layout: l }))} />
               <LayoutBtn id="game-only" cur={layout} name="Recorte central" desc="Vertical, sem separar a câmera" onPick={(l) => onChange((p) => ({ ...p, layout: l }))} />
+              <LayoutBtn
+                id="podcast"
+                cur={layout}
+                name="Podcast"
+                desc="2 pessoas, tela dividida"
+                onPick={(l) => onChange((p) => ({ ...p, layout: l, speakers: p.speakers ?? defaultSpeakers(video.width, video.height) }))}
+              />
               <LayoutBtn id="wide" cur={layout} name="Horizontal" desc="16:9 para YouTube" onPick={(l) => onChange((p) => ({ ...p, layout: l }))} />
             </div>
           </div>
@@ -235,6 +257,12 @@ function LayoutBtn(props: { id: Layout; cur: Layout; name: string; desc: string;
     ) : (
       <div style={{ width: 46, height: 82, borderRadius: 6, overflow: "hidden", background: "#26303c", display: "flex", flexDirection: "column" }}>
         {props.id === "cam-top" && <div style={{ height: "38%", background: "#5b4a78" }} />}
+        {props.id === "podcast" && (
+          <>
+            <div style={{ height: "50%", background: "#5b4a78", borderBottom: "2px solid #0b0b0f" }} />
+            <div style={{ height: "50%", background: "#3d5a78" }} />
+          </>
+        )}
       </div>
     );
   return (
@@ -247,16 +275,21 @@ function LayoutBtn(props: { id: Layout; cur: Layout; name: string; desc: string;
 }
 
 /** Imagem do vídeo com o retângulo da webcam arrastável/redimensionável. */
-function CamEditor(props: { frameUrl: string; video: { w: number; h: number }; rect: Rect | null; confidence: number; onRect: (r: Rect) => void }) {
-  const { frameUrl, video, rect, confidence, onRect } = props;
+function CamEditor(props: {
+  frameUrl: string;
+  video: { w: number; h: number };
+  boxes: Array<{ rect: Rect; label: string }>;
+  aspect?: number; // trava a proporção ao redimensionar (podcast)
+  onRect: (i: number, r: Rect) => void;
+}) {
+  const { frameUrl, video, boxes, aspect, onRect } = props;
   const box = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ mode: "move" | "resize"; sx: number; sy: number; start: Rect } | null>(null);
+  const drag = useRef<{ i: number; mode: "move" | "resize"; sx: number; sy: number; start: Rect } | null>(null);
 
-  function begin(e: RPointerEvent, mode: "move" | "resize") {
-    if (!rect) return;
+  function begin(e: RPointerEvent, i: number, mode: "move" | "resize") {
     e.stopPropagation();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    drag.current = { mode, sx: e.clientX, sy: e.clientY, start: rect };
+    drag.current = { i, mode, sx: e.clientX, sy: e.clientY, start: boxes[i].rect };
   }
   function move(e: RPointerEvent) {
     const d = drag.current;
@@ -268,10 +301,18 @@ function CamEditor(props: { frameUrl: string; video: { w: number; h: number }; r
     let r: Rect;
     if (d.mode === "move") {
       r = { ...d.start, x: clamp(d.start.x + dx, 0, video.w - d.start.w), y: clamp(d.start.y + dy, 0, video.h - d.start.h) };
+    } else if (aspect) {
+      let w = clamp(d.start.w + dx, 120, video.w - d.start.x);
+      let h = w / aspect;
+      if (d.start.y + h > video.h) {
+        h = video.h - d.start.y;
+        w = h * aspect;
+      }
+      r = { ...d.start, w, h };
     } else {
       r = { ...d.start, w: clamp(d.start.w + dx, 80, video.w - d.start.x), h: clamp(d.start.h + dy, 60, video.h - d.start.y) };
     }
-    onRect({ x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.w), h: Math.round(r.h) });
+    onRect(d.i, { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.w), h: Math.round(r.h) });
   }
   function end() {
     drag.current = null;
@@ -280,10 +321,11 @@ function CamEditor(props: { frameUrl: string; video: { w: number; h: number }; r
   return (
     <div ref={box} className="frame" onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
       <img src={frameUrl} alt="Quadro do vídeo" />
-      {rect && (
+      {boxes.map(({ rect, label }, i) => (
         <div
-          className="camBox"
-          onPointerDown={(e) => begin(e, "move")}
+          key={i}
+          className={`camBox ${i === 1 ? "alt" : ""}`}
+          onPointerDown={(e) => begin(e, i, "move")}
           style={{
             left: `${(rect.x / video.w) * 100}%`,
             top: `${(rect.y / video.h) * 100}%`,
@@ -292,15 +334,26 @@ function CamEditor(props: { frameUrl: string; video: { w: number; h: number }; r
           }}
         >
           <span className="tag" style={rect.y / video.h < 0.08 ? { top: "auto", bottom: -30 } : undefined}>
-            Webcam{confidence > 0 ? ` · ${Math.round(confidence * 100)}%` : ""}
+            {label}
           </span>
-          <span className="handle" onPointerDown={(e) => begin(e, "resize")} />
+          <span className="handle" onPointerDown={(e) => begin(e, i, "resize")} />
         </div>
-      )}
+      ))}
     </div>
   );
 }
 
 function clamp(n: number, a: number, b: number) {
   return Math.min(Math.max(n, a), Math.max(a, b));
+}
+
+/** Áreas iniciais do podcast: metade esquerda e metade direita, na proporção 9:8. */
+function defaultSpeakers(W: number, H: number): [Rect, Rect] {
+  const w = Math.min(W / 2, H * 1.125);
+  const h = w / 1.125;
+  const y = Math.max(0, (H - h) / 2);
+  return [
+    { x: Math.round(W / 4 - w / 2 < 0 ? 0 : W / 4 - w / 2), y: Math.round(y), w: Math.round(w), h: Math.round(h) },
+    { x: Math.round(Math.min(W - w, (3 * W) / 4 - w / 2)), y: Math.round(y), w: Math.round(w), h: Math.round(h) },
+  ];
 }

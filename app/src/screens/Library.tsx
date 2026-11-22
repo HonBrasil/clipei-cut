@@ -4,7 +4,7 @@ import { deleteProject, listProjects } from "../lib/projects";
 import { fmtTime } from "../lib/format";
 import type { Project } from "../lib/types";
 
-const LAYOUT_LABEL = { "cam-top": "Cam em cima", "game-only": "Recorte central", wide: "Horizontal" } as const;
+const LAYOUT_LABEL = { "cam-top": "Cam em cima", "game-only": "Recorte central", wide: "Horizontal", square: "Quadrado", podcast: "Podcast" } as const;
 
 export function Library({ onOpen, onNew }: { onOpen: (p: Project) => void; onNew: () => void }) {
   const [projects, setProjects] = useState<Project[] | null>(null);

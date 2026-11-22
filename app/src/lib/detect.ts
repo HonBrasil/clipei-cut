@@ -25,6 +25,7 @@ export type Detection = {
   confidence: number; // 0..1 (em quantos quadros o rosto apareceu no mesmo lugar)
   faceCam: boolean; // rosto grande ocupando a tela (podcast/react sem gameplay)
   frameUrl: string; // imagem de referência para mostrar na tela
+  speakers: [Rect, Rect] | null; // duas pessoas fixas na imagem (podcast/entrevista)
 };
 
 export async function detectWebcam(video: VideoInfo, framePaths: string[]): Promise<Detection> {
@@ -70,11 +71,43 @@ export async function detectWebcam(video: VideoInfo, framePaths: string[]): Prom
   const framesWithFace = new Set(perFrame.map((faces, i) => (faces.some((f) => best.includes(f)) ? i : -1)).filter((i) => i >= 0)).size;
   const confidence = framePaths.length ? framesWithFace / framePaths.length : 0;
 
-  if (best.length === 0 || confidence < 0.35) {
-    return { webcam: null, confidence: 0, faceCam: false, frameUrl };
+  const med = (arr: number[]) => arr.slice().sort((a, b) => a - b)[Math.floor(arr.length / 2)];
+  const sx = video.width / fw;
+  const sy = video.height / fh;
+
+  // Podcast: um segundo rosto fixo, longe do primeiro, em boa parte dos quadros
+  let speakers: [Rect, Rect] | null = null;
+  if (best.length) {
+    const c1 = { cx: med(best.map((f) => f.cx)), cy: med(best.map((f) => f.cy)), w: med(best.map((f) => f.w)) };
+    const rest = all.filter((f) => Math.hypot(f.cx - c1.cx, f.cy - c1.cy) > Math.max(c1.w, f.w) * 1.6);
+    let second: Face[] = [];
+    for (const f of rest) {
+      const near = rest.filter((g) => Math.hypot(g.cx - f.cx, g.cy - f.cy) < Math.max(f.w, 24) * 0.8);
+      if (near.length > second.length) second = near;
+    }
+    const frames2 = new Set(perFrame.map((faces, i) => (faces.some((f) => second.includes(f)) ? i : -1)).filter((i) => i >= 0)).size;
+    if (second.length && framePaths.length && frames2 / framePaths.length >= 0.35) {
+      const c2 = { cx: med(second.map((f) => f.cx)), cy: med(second.map((f) => f.cy)), w: med(second.map((f) => f.w)) };
+      const area = (c: { cx: number; cy: number; w: number }): Rect => {
+        let w = Math.min(fw, c.w * 3.4);
+        let h = w / 1.125;
+        if (h > fh) {
+          h = fh;
+          w = h * 1.125;
+        }
+        const x = Math.max(0, Math.min(fw - w, c.cx - w / 2));
+        const y = Math.max(0, Math.min(fh - h, c.cy - h * 0.42));
+        return { x: Math.round(x * sx), y: Math.round(y * sy), w: Math.round(w * sx), h: Math.round(h * sy) };
+      };
+      const pair = [c1, c2].sort((a, b) => a.cx - b.cx || a.cy - b.cy);
+      speakers = [area(pair[0]), area(pair[1])];
+    }
   }
 
-  const med = (arr: number[]) => arr.slice().sort((a, b) => a - b)[Math.floor(arr.length / 2)];
+  if (best.length === 0 || confidence < 0.35) {
+    return { webcam: null, confidence: 0, faceCam: false, frameUrl, speakers: null };
+  }
+
   const face = { cx: med(best.map((f) => f.cx)), cy: med(best.map((f) => f.cy)), w: med(best.map((f) => f.w)), h: med(best.map((f) => f.h)) };
 
   // Rosto grande = câmera é o vídeo inteiro (podcast, react em tela cheia)
@@ -90,13 +123,12 @@ export async function detectWebcam(video: VideoInfo, framePaths: string[]): Prom
   w = Math.min(w, fw);
   h = Math.min(h, fh);
 
-  const sx = video.width / fw;
-  const sy = video.height / fh;
   return {
     webcam: faceCam ? null : { x: Math.round(x * sx), y: Math.round(y * sy), w: Math.round(w * sx), h: Math.round(h * sy) },
     confidence,
     faceCam,
     frameUrl,
+    speakers,
   };
 }
 
