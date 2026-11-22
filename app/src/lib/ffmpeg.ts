@@ -172,6 +172,14 @@ function encoderArgs(e: Encoder): string[] {
 
 const even = (n: number) => Math.max(2, Math.floor(n / 2) * 2);
 
+export type EmojiOverlay = { file: string; start: number; end: number; x: number; y: number; size: number };
+export type Effects = {
+  keeps?: Array<[number, number]>; // trechos mantidos (cortes de silêncio/vícios), relativos ao clipe
+  zoom?: Array<[number, number]>; // momentos de zoom (linha do tempo final)
+  zoomExpr?: string; // curva de zoom pronta (expressão do FFmpeg)
+  emojis?: EmojiOverlay[]; // emojis por cima do vídeo (linha do tempo final)
+};
+
 /** Monta o filtro de imagem para cada layout. Saída 1080x1920 (vertical) ou 1920x1080. */
 export function buildFilter(
   video: VideoInfo,
@@ -179,19 +187,25 @@ export function buildFilter(
   webcam: Rect | null | undefined,
   assFile: string | null,
   quality: Quality = "1080p60",
+  fx: Effects = {},
 ): string {
   const W = video.width;
   const H = video.height;
-  // Legenda (fontes copiadas para a pasta "fonts" ao lado do .ass) + qualidade final
   const fps = quality === "1080p60" ? (video.fps > 60.5 ? ",fps=60" : "") : video.fps > 30.5 ? ",fps=30" : "";
   const down = quality === "720p30" ? (layout === "wide" ? ",scale=1280:720" : ",scale=720:1280") : "";
-  const subs = (assFile ? `,subtitles=${assFile}:fontsdir=fonts` : "") + down + fps;
 
+  // Cortes: mantém só os trechos escolhidos e junta tudo sem buracos
+  const cut = fx.keeps && fx.keeps.length > 0;
+  const src = cut ? `[0:v]select=${selectFrom(fx.keeps!)},setpts=N/(FRAME_RATE*TB),` : "[0:v]";
+  // Zoom dinâmico (aproxima o centro da imagem nos momentos fortes)
+  const zr = (fx.zoom?.length ?? 0) > 0 && fx.zoomExpr ? (fx.zoomExpr as string) : null;
+  const zoom = (w: number, h: number) =>
+    zr ? `,zoompan=z=${zr}:x=iw/2-(iw/zoom/2):y=ih/2-(ih/zoom/2):d=1:s=${w}x${h}:fps=${video.fps.toFixed(3)}` : "";
+
+  let base: string;
   if (layout === "wide") {
-    return `[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1${subs}[v]`;
-  }
-
-  if (layout === "cam-top" && webcam) {
+    base = `${src}scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1${zoom(1920, 1080)}[base]`;
+  } else if (layout === "cam-top" && webcam) {
     const cw = even(Math.min(webcam.w, W));
     const ch = even(Math.min(webcam.h, H));
     const cx = even(Math.max(0, Math.min(W - cw, webcam.x)));
@@ -199,18 +213,39 @@ export function buildFilter(
     const gh = H;
     const gw = even(Math.min(W, gh * (1080 / 1200)));
     const gx = even((W - gw) / 2);
-    return (
-      `[0:v]split=2[c][g];` +
-      `[c]crop=${cw}:${ch}:${cx}:${cy},scale=1080:720:force_original_aspect_ratio=increase,crop=1080:720,setsar=1[cam];` +
-      `[g]crop=${gw}:${gh}:${gx}:0,scale=1080:1200:force_original_aspect_ratio=increase,crop=1080:1200,setsar=1[game];` +
-      `[cam][game]vstack=inputs=2${subs}[v]`
-    );
+    // No layout com webcam, o zoom vai no rosto (reação), não no jogo
+    base =
+      `${src}split=2[c][g];` +
+      `[c]crop=${cw}:${ch}:${cx}:${cy},scale=1080:720:force_original_aspect_ratio=increase,crop=1080:720,setsar=1${zoom(1080, 720)}[cam];` +
+      `[g]crop=${gw}:${gh}:${gx}:0,scale=1080:1200:force_original_aspect_ratio=increase,crop=1080:1200,setsar=1${zr ? `,fps=${video.fps.toFixed(3)}` : ""}[game];` +
+      `[cam][game]vstack=inputs=2[base]`;
+  } else {
+    // Só gameplay (ou cam-top sem webcam detectada): recorte central 9:16
+    const gw = even(Math.min(W, H * (9 / 16)));
+    const gx = even((W - gw) / 2);
+    base = `${src}crop=${gw}:${H}:${gx}:0,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1${zoom(1080, 1920)}[base]`;
   }
 
-  // Só gameplay (ou cam-top sem webcam detectada): recorte central 9:16
-  const gw = even(Math.min(W, H * (9 / 16)));
-  const gx = even((W - gw) / 2);
-  return `[0:v]crop=${gw}:${H}:${gx}:0,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1${subs}[v]`;
+  // Legenda (fontes copiadas para a pasta "fonts" ao lado do .ass)
+  let chain = base;
+  let cur = "[base]";
+  if (assFile) {
+    chain += `;${cur}subtitles=${assFile}:fontsdir=fonts[sb]`;
+    cur = "[sb]";
+  }
+  // Emojis por cima da legenda (entradas 1, 2, 3… depois do vídeo)
+  (fx.emojis ?? []).forEach((e, i) => {
+    chain +=
+      `;[${i + 1}:v]scale=${e.size}:${e.size}[em${i}]` +
+      `;${cur}[em${i}]overlay=x=${Math.round(e.x)}:y=${Math.round(e.y)}:enable=between(t\\,${e.start.toFixed(2)}\\,${e.end.toFixed(2)})[o${i}]`;
+    cur = `[o${i}]`;
+  });
+  chain += `;${cur}null${down}${fps}[v]`;
+  return chain;
+}
+
+function selectFrom(keeps: Array<[number, number]>): string {
+  return keeps.map(([a, b]) => `between(t\\,${a.toFixed(3)}\\,${b.toFixed(3)})`).join("+");
 }
 
 export async function exportClip(opts: {
@@ -223,20 +258,34 @@ export async function exportClip(opts: {
   outPath: string;
   encoder: Encoder;
   quality?: Quality;
-  beeps?: Array<[number, number]>; // trechos para bipar (relativos ao clipe)
+  beeps?: Array<[number, number]>; // trechos para bipar (linha do tempo final)
+  fx?: Effects;
   onProgress?: (p: number) => void;
 }): Promise<void> {
   const { video, clip, layout, webcam, assFile, outPath, encoder, onProgress } = opts;
   const len = clip.end - clip.start;
-  let filter = buildFilter(video, layout, webcam, assFile, opts.quality);
+  const fx = opts.fx ?? {};
+  const cut = fx.keeps && fx.keeps.length > 0;
+  const outLen = cut ? fx.keeps!.reduce((n, [a, b]) => n + (b - a), 0) : len;
+  let filter = buildFilter(video, layout, webcam, assFile, opts.quality, fx);
   let audioMap = ["-map", "0:a:0?"];
-  if (video.hasAudio && opts.beeps?.length) {
-    filter += ";" + beepFilter(opts.beeps, len);
-    audioMap = ["-map", "[a]"];
+  if (video.hasAudio) {
+    let aIn = "[0:a:0]";
+    if (cut) {
+      filter += `;[0:a:0]aselect=${selectFrom(fx.keeps!)},asetpts=N/SR/TB[ak]`;
+      aIn = "[ak]";
+      audioMap = ["-map", "[ak]"];
+    }
+    if (opts.beeps?.length) {
+      filter += ";" + beepFilter(opts.beeps, outLen, aIn);
+      audioMap = ["-map", "[a]"];
+    }
   }
+  const emojiInputs = (fx.emojis ?? []).flatMap((e) => ["-i", e.file]);
   const args = [
     "-y",
     "-ss", clip.start.toFixed(3), "-t", len.toFixed(3), "-i", video.path,
+    ...emojiInputs,
     "-filter_complex", filter, "-map", "[v]",
     ...(video.hasAudio ? [...audioMap, "-c:a", "aac", "-b:a", "160k"] : []),
     ...encoderArgs(encoder),
@@ -244,7 +293,7 @@ export async function exportClip(opts: {
     outPath,
   ];
   try {
-    await runWithProgress(args, len, onProgress, opts.workDir);
+    await runWithProgress(args, outLen, onProgress, opts.workDir);
   } catch (err) {
     // Se a placa de vídeo falhar, tenta de novo pelo processador
     if (encoder !== "libx264") {
@@ -257,10 +306,10 @@ export async function exportClip(opts: {
 }
 
 /** Silencia os palavrões e coloca um bip no lugar. */
-export function beepFilter(beeps: Array<[number, number]>, len: number): string {
+export function beepFilter(beeps: Array<[number, number]>, len: number, input = "[0:a:0]"): string {
   const expr = beeps.map(([a, b]) => `between(t,${a.toFixed(2)},${b.toFixed(2)})`).join("+");
   return (
-    `[0:a:0]volume=0:enable='${expr}'[am];` +
+    `${input}volume=0:enable='${expr}'[am];` +
     `sine=frequency=1000:sample_rate=48000:duration=${len.toFixed(2)},volume=0.18,volume=0:enable='not(${expr})'[bp];` +
     `[am][bp]amix=inputs=2:duration=first:normalize=0[a]`
   );

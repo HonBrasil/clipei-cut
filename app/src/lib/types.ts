@@ -17,6 +17,9 @@ export type Transcript = { segments: Segment[]; words: Word[]; duration: number 
 
 export type Layout = "cam-top" | "game-only" | "wide";
 
+export type Highlight = { word: string; emoji?: string | null };
+export type ClipNotes = { gancho: number; emocao: number; clareza: number };
+
 export type Clip = {
   id: string;
   start: number;
@@ -25,6 +28,8 @@ export type Clip = {
   score: number;
   reason: string;
   hook: string;
+  notes?: ClipNotes; // notas da IA (0-100) que formam a nota de viralidade
+  highlights?: Highlight[]; // palavras fortes (com emoji opcional) escolhidas pela IA
   post?: PostCopy; // texto do post gerado pela IA
   orig?: { start: number; end: number }; // corte original da IA (antes do ajuste manual)
 };

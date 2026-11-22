@@ -3,6 +3,14 @@
 import type { Layout, Word } from "./types";
 import { FONTS, type CaptionModel, type CaptionPos } from "./settings";
 
+/** Cor das palavras-chave: contrasta com a cor de destaque do modelo. */
+export function keywordColor(model: CaptionModel): string {
+  const h = model.highlight.replace("#", "").toLowerCase();
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  const yellowish = r > 180 && g > 170 && b < 120;
+  return yellowish ? "#4ADE80" : "#FFD43B";
+}
+
 /** Converte #RRGGBB para a cor do ASS (&H00BBGGRR&). */
 export function assColor(hex: string, alpha = "00"): string {
   const h = hex.replace("#", "").padEnd(6, "F");
@@ -86,6 +94,7 @@ export function buildAss(
   model: CaptionModel,
   censor = false,
   watermark = false,
+  keywords: Set<number> = new Set(), // índices (em words) das palavras-chave
 ): string {
   const vertical = layout !== "wide";
   const playX = vertical ? 1080 : 1920;
@@ -94,6 +103,7 @@ export function buildAss(
   const posY = captionY(layout, hasWebcam, model.position);
   const base = assColor(model.base);
   const hl = assColor(model.highlight);
+  const kw = assColor(keywordColor(model));
   const font = FONTS[model.font]?.family ?? "Arial";
   const borderStyle = model.box ? 3 : 1;
   const outline = model.box ? 14 : model.outline ? 6 : 0;
@@ -126,7 +136,9 @@ export function buildAss(
   const reset = `{\\c${base}\\fscx100\\fscy100}`;
 
   const lines: string[] = [];
-  const groups = groupWords(words.filter((w) => w.end > 0 && w.start < clipLen));
+  const tagged = words.map((w, i) => ({ ...w, kw: keywords.has(i) }));
+  const groups = groupWords(tagged.filter((w) => w.end > 0 && w.start < clipLen)) as Array<Array<Word & { kw?: boolean }>>;
+  const color = (x: Word & { kw?: boolean }, t: string) => (x.kw ? `{\\c${kw}}${t}{\\c${base}}` : t);
   groups.forEach((g, gi) => {
     const groupEnd = Math.min(
       clipLen,
@@ -135,7 +147,7 @@ export function buildAss(
     const enter = "\\fscx85\\fscy85\\t(0,90,\\fscx100\\fscy100)";
 
     if (model.anim === "frase") {
-      const text = g.map((x) => fmt(x.word)).join(" ");
+      const text = g.map((x) => color(x, fmt(x.word))).join(" ");
       lines.push(`Dialogue: 0,${ts(Math.max(0, g[0].start))},${ts(groupEnd)},Clipei,,0,0,0,,{${pos}${enter}}${text}`);
       return;
     }
@@ -148,7 +160,7 @@ export function buildAss(
       const text = visible
         .map((x, xi) => {
           const t = fmt(x.word);
-          if (xi !== wi) return t;
+          if (xi !== wi) return color(x, t);
           const pop = model.anim === "pop" ? `\\fscx128\\fscy128\\t(0,120,\\fscx112\\fscy112)` : `\\fscx112\\fscy112`;
           return `{\\c${hl}${pop}}${t}${reset}`;
         })

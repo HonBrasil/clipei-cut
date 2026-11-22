@@ -3,7 +3,15 @@
 import { admin, corsHeaders, env, fail, json, requireUser } from "../_shared/common.ts";
 
 type Line = { s: number; e: number; t: string };
-type Clip = { start: number; end: number; title: string; score: number; reason: string; hook: string };
+type Highlight = { word: string; emoji: string | null };
+type Clip = {
+  start: number; end: number; title: string; score: number; reason: string; hook: string;
+  notes: { gancho: number; emocao: number; clareza: number };
+  highlights: Highlight[];
+};
+
+// Emojis que o app tem em imagem (a IA só pode usar estes)
+const EMOJIS = ["😂","🤣","😱","🤯","🔥","💯","👀","😍","😭","😡","🤔","🙏","👏","💪","🚀","💰","⚠️","❌","✅","🎯","🎮","🏆","💀","😎","🤡","❤️","💔","🤝","📈","📉","💡","⏰","🎉","😅","🙄","🤫","👑","😮","🥺","🍀"];
 
 const MAX_CHARS = 350_000;
 
@@ -25,12 +33,14 @@ Regras:
 - "title": título curto e chamativo em português (até 60 caracteres), sem emojis, sem hashtags.
 - "reason": 2 a 5 palavras explicando por que foi escolhido (ex.: "Reação engraçada", "Dica útil").
 - "hook": a primeira frase do clipe, como foi dita.
+- "notas": de 0 a 100 cada: "gancho" (força dos primeiros 3 s), "emocao" (emoção/valor do conteúdo), "clareza" (entende-se sem contexto e fecha a ideia). O "score" deve ser coerente com elas.
+- "destaques": de 3 a 8 palavras fortes DITAS no clipe (copie a palavra exatamente como aparece na transcrição, uma palavra só, sem espaços), espalhadas ao longo do clipe. Para até metade delas, escolha um emoji que combine, SOMENTE desta lista: ${EMOJIS.join(" ")}. Nas outras use "".
 - Se não houver momentos bons, devolva lista vazia.
 - Quando for pedida uma quantidade exata, tente chegar nela usando também momentos medianos (com nota menor), mas nunca invente trechos que não existem.
 - Nunca repita nem sobreponha os trechos listados em "Já escolhidos".
 
 Responda APENAS com JSON válido, sem texto antes ou depois, no formato:
-{"clips":[{"start":0,"end":0,"title":"","score":0,"reason":"","hook":""}]}`;
+{"clips":[{"start":0,"end":0,"title":"","score":0,"reason":"","hook":"","notas":{"gancho":0,"emocao":0,"clareza":0},"destaques":[{"palavra":"","emoji":""}]}]}`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -82,7 +92,7 @@ Deno.serve(async (req) => {
     },
     body: JSON.stringify({
       model: env("ANTHROPIC_MODEL", "claude-haiku-5-5"),
-      max_tokens: 6000,
+      max_tokens: 8000,
       system: SYSTEM,
       messages: [
         {
@@ -119,7 +129,7 @@ Deno.serve(async (req) => {
 
   const clips: Clip[] = [];
   for (const raw of parsed.clips ?? []) {
-    const c = raw as Partial<Clip>;
+    const c = raw as Partial<Clip> & { notas?: Record<string, unknown>; destaques?: Array<{ palavra?: unknown; emoji?: unknown }> };
     const start = Number(c.start);
     const end = Number(c.end);
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
@@ -135,6 +145,18 @@ Deno.serve(async (req) => {
       score: clamp(Math.round(Number(c.score ?? 50)), 0, 100),
       reason: String(c.reason ?? "").slice(0, 40),
       hook: String(c.hook ?? "").slice(0, 200),
+      notes: {
+        gancho: clamp(Math.round(Number(c.notas?.gancho ?? c.score ?? 50)), 0, 100),
+        emocao: clamp(Math.round(Number(c.notas?.emocao ?? c.score ?? 50)), 0, 100),
+        clareza: clamp(Math.round(Number(c.notas?.clareza ?? c.score ?? 50)), 0, 100),
+      },
+      highlights: (Array.isArray(c.destaques) ? c.destaques : [])
+        .map((d) => ({
+          word: String(d?.palavra ?? "").trim().split(/\s+/)[0].slice(0, 40),
+          emoji: EMOJIS.includes(String(d?.emoji ?? "")) ? String(d?.emoji) : null,
+        }))
+        .filter((d) => d.word.length >= 2)
+        .slice(0, 8),
     });
   }
 

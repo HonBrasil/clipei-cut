@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { Icon } from "./Icon";
-import { captionY, groupWords, isBadWord, maskWord } from "../lib/ass";
+import { captionY, groupWords, isBadWord, keywordColor, maskWord } from "../lib/ass";
+import { fromOut, toOut, zoomAt, type ClipPlan } from "../lib/edit";
 import { fmtTime } from "../lib/format";
 import { loadCaptionFonts } from "../lib/native";
 import type { CaptionModel } from "../lib/settings";
@@ -32,8 +33,10 @@ export function ClipPreview(props: {
   censor: boolean;
   watermark: boolean;
   seek?: { t: number; n: number }; // pedido de pulo (tempo do vídeo original)
+  plan?: ClipPlan; // cortes, destaques, emojis e zoom (edição automática)
 }) {
-  const { video, clip, layout, webcam, words, model, censor, watermark, seek } = props;
+  const { video, clip, layout, webcam, model, censor, watermark, seek, plan } = props;
+  const words = plan ? plan.words : props.words;
   const vRef = useRef<HTMLVideoElement>(null);
   const cRef = useRef<HTMLCanvasElement>(null);
   const [t, setT] = useState(0); // tempo dentro do clipe
@@ -44,7 +47,10 @@ export function ClipPreview(props: {
   const CW = vertical ? 540 : 960;
   const CH = vertical ? 960 : 540;
   const k = CW / (vertical ? 1080 : 1920);
-  const len = clip.end - clip.start;
+  const len = plan ? plan.outLen : clip.end - clip.start; // duração final
+  const rawLen = clip.end - clip.start;
+  const keeps = plan?.keeps;
+  const zoomList = plan?.zoom ?? [];
   const hasCam = layout === "cam-top" && Boolean(webcam);
 
   useEffect(() => {
@@ -83,31 +89,46 @@ export function ClipPreview(props: {
         ctx.fillRect(0, 0, CW, CH);
         const W = video.width;
         const H = video.height;
+        // Tempo original dentro do clipe → pula os trechos cortados
+        let rel = v.currentTime - clip.start;
+        if (keeps && keeps.length && rel >= 0 && rel < rawLen) {
+          const inside = keeps.some(([a, b]) => rel >= a && rel <= b);
+          if (!inside) {
+            const nxt = keeps.find(([a]) => a > rel);
+            if (nxt) {
+              v.currentTime = clip.start + nxt[0];
+              rel = nxt[0];
+            } else rel = rawLen;
+          }
+        }
+        const tOut = keeps ? (toOut(Math.max(0, rel), keeps) ?? 0) : rel;
+        const z = zoomList.length ? zoomAt(tOut, zoomList) : 1;
+        // Zoom: aproxima o centro da área (mesma curva da exportação)
+        const zoomed = (b: Box): Box => (z === 1 ? b : { x: b.x + (b.w - b.w / z) / 2, y: b.y + (b.h - b.h / z) / 2, w: b.w / z, h: b.h / z });
         if (layout === "wide") {
-          const s = Math.min(CW / W, CH / H);
+          const s = Math.min(CW / W, CH / H) * z;
           ctx.drawImage(v, (CW - W * s) / 2, (CH - H * s) / 2, W * s, H * s);
         } else if (hasCam && webcam) {
-          const cam = cover({ x: webcam.x, y: webcam.y, w: Math.min(webcam.w, W), h: Math.min(webcam.h, H) }, 1080 / 720);
+          const cam = zoomed(cover({ x: webcam.x, y: webcam.y, w: Math.min(webcam.w, W), h: Math.min(webcam.h, H) }, 1080 / 720));
           ctx.drawImage(v, cam.x, cam.y, cam.w, cam.h, 0, 0, CW, 720 * k);
           const gw = Math.min(W, H * (1080 / 1200));
           const game = cover({ x: (W - gw) / 2, y: 0, w: gw, h: H }, 1080 / 1200);
           ctx.drawImage(v, game.x, game.y, game.w, game.h, 0, 720 * k, CW, 1200 * k);
         } else {
           const gw = Math.min(W, H * (9 / 16));
-          const g = cover({ x: (W - gw) / 2, y: 0, w: gw, h: H }, 9 / 16);
+          const g = zoomed(cover({ x: (W - gw) / 2, y: 0, w: gw, h: H }, 9 / 16));
           ctx.drawImage(v, g.x, g.y, g.w, g.h, 0, 0, CW, CH);
         }
-        const rel = v.currentTime - clip.start;
-        if (rel >= len || rel < -0.5) {
-          v.currentTime = clip.start; // repete só o trecho do clipe
+        if (rel >= rawLen || rel < -0.5) {
+          v.currentTime = clip.start + (keeps?.[0]?.[0] ?? 0); // repete só o trecho do clipe
         }
-        setT(Math.max(0, Math.min(len, rel)));
+        setT(Math.max(0, Math.min(len, tOut)));
       }
       raf = requestAnimationFrame(draw);
     };
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [layout, hasCam, webcam, video.width, video.height, clip.start, len, CW, CH, k]);
+  }, [layout, hasCam, webcam, video.width, video.height, clip.start, len, rawLen, keeps, zoomList, CW, CH, k]);
 
   function toggle() {
     const v = vRef.current;
@@ -117,8 +138,11 @@ export function ClipPreview(props: {
   }
 
   // ----- Legenda ao vivo (mesma lógica do arquivo de legenda) -----
-  const groups = useMemo(() => groupWords(words.filter((w) => w.end > 0 && w.start < len)), [words, len]);
-  let caption: { list: Word[]; cur: number } | null = null;
+  const groups = useMemo(
+    () => groupWords(words.map((w, i) => ({ ...w, kw: plan?.keywords.has(i) ?? false })).filter((w) => w.end > 0 && w.start < len)) as Array<Array<Word & { kw?: boolean }>>,
+    [words, len, plan],
+  );
+  let caption: { list: Array<Word & { kw?: boolean }>; cur: number } | null = null;
   if (model) {
     for (let gi = 0; gi < groups.length; gi++) {
       const g = groups[gi];
@@ -135,8 +159,10 @@ export function ClipPreview(props: {
   }
   const fontSize = model ? (vertical ? 82 : 66) * (model.size / 100) * k : 0;
   const stroke = model?.outline && !model.box ? Math.max(1.2, fontSize * 0.075) : 0;
-  const wordStyle = (on: boolean): CSSProperties => ({
-    color: on ? model!.highlight : model!.base,
+  const kwColor = model ? keywordColor(model) : "#FFD43B";
+  const emojiNow = plan?.emojis.find((e) => t >= e.start && t < e.end) ?? null;
+  const wordStyle = (on: boolean, kw = false): CSSProperties => ({
+    color: on ? model!.highlight : kw ? kwColor : model!.base,
     display: "inline-block",
     transform: on ? `scale(${model!.anim === "pop" ? 1.18 : 1.12})` : "none",
     margin: on ? `0 ${fontSize * 0.1}px` : 0,
@@ -178,11 +204,24 @@ export function ClipPreview(props: {
               {caption.list.map((w, i) => (
                 <span key={i}>
                   {i > 0 && " "}
-                  <span style={wordStyle(i === caption!.cur)}>{fmt(w.word)}</span>
+                  <span style={wordStyle(i === caption!.cur, w.kw)}>{fmt(w.word)}</span>
                 </span>
               ))}
             </span>
           </div>
+        )}
+        {emojiNow && (
+          <span
+            key={emojiNow.start}
+            className="pvEmoji"
+            aria-hidden
+            style={{
+              top: `${((captionY(layout, hasCam, model?.position ?? "meio") - fontSize / k - 75) * k * 100) / CH}%`,
+              fontSize: `${((130 * k) / CW) * 100}cqw`,
+            }}
+          >
+            {emojiNow.emoji}
+          </span>
         )}
         {model?.brand.trim() && (
           <span className="pvBrand" style={{ fontFamily: `clipei-${model.font}, sans-serif`, fontSize: `${((37 * (model.size / 100) * k) / CW) * 100}cqw` }}>
@@ -211,7 +250,7 @@ export function ClipPreview(props: {
           style={{ flex: 1, accentColor: "#e3121f" }}
           onChange={(e) => {
             const v = vRef.current;
-            if (v) v.currentTime = clip.start + Number(e.target.value);
+            if (v) v.currentTime = clip.start + (keeps ? fromOut(Number(e.target.value), keeps) : Number(e.target.value));
           }}
         />
         <span className="muted small" style={{ minWidth: 76, textAlign: "right" }}>

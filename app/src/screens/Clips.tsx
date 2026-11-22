@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { join } from "@tauri-apps/api/path";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { Icon } from "../components/Icon";
 import { detectEncoder, encoderLabel, exportClip, workDir, type Encoder } from "../lib/ffmpeg";
-import { buildAss, censorIntervals } from "../lib/ass";
-import { ensureDir, prepareFonts, revealPath } from "../lib/native";
+import { buildAss, captionY, censorIntervals } from "../lib/ass";
+import { ensureDir, prepareEmojis, prepareFonts, revealPath } from "../lib/native";
+import { EMOJIS, planClip, zoomExpr as zoomExprOf, type EditOpts } from "../lib/edit";
 import { allModels, exportDirOf, useSettings, type FileNaming } from "../lib/settings";
 import { findClips, generatePost, wordsForClip } from "../lib/ai";
 import { CaptionEditor } from "../components/CaptionEditor";
@@ -32,12 +33,19 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
   const [postState, setPostState] = useState<{ busy: boolean; error?: string }>({ busy: false });
   const [copied, setCopied] = useState<string | null>(null);
   const [seekReq, setSeekReq] = useState<{ t: number; n: number } | undefined>(undefined);
+  const [order, setOrder] = useState<"nota" | "video">("nota");
+  const fx: EditOpts = settings.fx ?? { cutSilences: true, cutFillers: true, emojis: true, keywords: true, zoom: true };
+  const setFx = (k: keyof EditOpts) => update({ fx: { ...fx, [k]: !fx[k] } });
+  const planFor = (c: Clip) => planClip(project.transcript ? wordsForClip(project.transcript.words, c) : [], c.end - c.start, c.highlights, fx);
+  const shown = useMemo(() => (order === "nota" ? [...clips].sort((a, b) => b.score - a.score) : [...clips].sort((a, b) => a.start - b.start)), [clips, order]);
 
   useEffect(() => {
     detectEncoder(settings.useGpu).then(setEncoder).catch(() => setEncoder("libx264"));
   }, [settings.useGpu]);
 
   const current = clips.find((c) => c.id === playing?.id) ?? null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const currentPlan = useMemo(() => (current && project.transcript ? planFor(current) : undefined), [current, project.transcript, fx.cutSilences, fx.cutFillers, fx.emojis, fx.keywords, fx.zoom]);
   const previewModel = models.find((m) => m.id === modelId) ?? models[0];
 
   function toggle(id: string) {
@@ -145,18 +153,20 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
       await ensureDir(outDir);
       const wdir = await workDir("export");
       await prepareFonts(await join(wdir, "fonts"));
+      if (fx.emojis) await prepareEmojis(await join(wdir, "emoji")).catch(() => {});
       const model = models.find((m) => m.id === modelId) ?? models[0];
       const done: string[] = [];
       for (let i = 0; i < list.length; i++) {
         const clip = list[i];
         setExp((e) => ({ ...e, current: i + 1, pct: 0 }));
-        const words = project.transcript ? wordsForClip(project.transcript.words, clip) : [];
+        const plan = planFor(clip);
+        const words = plan.words; // já na linha do tempo final (com os cortes)
         let assFile: string | null = null;
         const withCaptions = captions && Boolean(project.transcript);
         if (withCaptions || !paid) {
           // No plano Grátis vai o selo "Feito com Clipei Cut", mesmo sem legenda
           assFile = `clip_${i}.ass`;
-          const ass = buildAss(withCaptions ? words : [], clip.end - clip.start, project.layout ?? "cam-top", Boolean(project.webcam), model, settings.censor, !paid);
+          const ass = buildAss(withCaptions ? words : [], plan.outLen, project.layout ?? "cam-top", Boolean(project.webcam), model, settings.censor, !paid, withCaptions ? plan.keywords : new Set());
           await writeTextFile(await join(wdir, assFile), ass);
         }
         const outPath = await join(outDir, fileName(settings.fileNaming, i, clip.title, base, project.layout === "wide" ? "16x9" : "9x16"));
@@ -171,6 +181,18 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
           encoder,
           quality: paid ? settings.quality : "720p30",
           beeps: settings.censor ? censorIntervals(words) : [],
+          fx: {
+            keeps: plan.cut ? plan.keeps : undefined,
+            zoom: plan.zoom,
+            zoomExpr: plan.zoom.length ? zoomExprOf(plan.zoom) : undefined,
+            emojis: plan.emojis.map((e) => {
+              const wide = project.layout === "wide";
+              const size = wide ? 110 : 140;
+              const font = (wide ? 66 : 82) * (model.size / 100);
+              const y = captionY(project.layout ?? "cam-top", Boolean(project.webcam), model.position) - font - 75 - size / 2;
+              return { file: `emoji/${EMOJIS[e.emoji]}.png`, start: e.start, end: e.end, x: (wide ? 960 : 540) - size / 2, y: Math.max(20, y), size };
+            }),
+          },
           onProgress: (pct) => setExp((e) => ({ ...e, pct })),
         });
         done.push(outPath);
@@ -221,6 +243,30 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
           </button>
         </div>
       </div>
+
+      <div className="toolbar fxBar" aria-label="Edição automática">
+        <span className="small" style={{ color: "var(--soft)" }}>
+          <b style={{ color: "var(--text)" }}>Edição automática</b> · aplicada na prévia e na exportação
+        </span>
+        <div className="fxChips">
+          {(
+            [
+              ["cutSilences", "✂️ Cortar silêncios", "Encurta pausas longas entre as falas"],
+              ["cutFillers", "🗣️ Tirar “éé”, “hum”", "Remove hesitações da fala"],
+              ["keywords", "🎨 Palavras-chave", "Pinta as palavras mais fortes na legenda"],
+              ["emojis", "😱 Emojis", "Emoji animado nas palavras-chave"],
+              ["zoom", "🔍 Zoom dinâmico", "Aproxima a imagem nos momentos fortes"],
+            ] as Array<[keyof EditOpts, string, string]>
+          ).map(([k, label, tip]) => (
+            <button key={k} className={`chip sm ${fx[k] ? "on" : ""}`} aria-pressed={fx[k]} title={tip} onClick={() => setFx(k)} disabled={!project.transcript}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {project.transcript && clips.length > 0 && !clips.some((c) => c.highlights?.length) && (fx.keywords || fx.emojis || fx.zoom) && (
+        <div className="note small">Palavras-chave, emojis e zoom aparecem nos clipes gerados a partir desta versão. Use “Gerar mais clipes” ou analise o vídeo de novo para ter tudo.</div>
+      )}
 
       <div className="toolbar" style={{ borderColor: "#3a2f5c" }}>
         <span className="small" style={{ color: "var(--soft)" }}>
@@ -296,21 +342,52 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "flex-start" }}>
         <section className="clips" style={{ flex: "3 1 520px", minWidth: 0 }} aria-label="Clipes sugeridos">
-          {clips.map((c) => {
+          {clips.length > 1 && (
+            <div className="clipsOrder">
+              <span className="muted small">Ordenar por</span>
+              <div className="seg" role="tablist" aria-label="Ordenar clipes">
+                <button role="tab" aria-selected={order === "nota"} className={order === "nota" ? "on" : ""} onClick={() => setOrder("nota")}>
+                  Nota viral
+                </button>
+                <button role="tab" aria-selected={order === "video"} className={order === "video" ? "on" : ""} onClick={() => setOrder("video")}>
+                  Ordem do vídeo
+                </button>
+              </div>
+            </div>
+          )}
+          {shown.map((c) => {
             const on = selected.has(c.id);
+            const outLen = project.transcript && (fx.cutSilences || fx.cutFillers) ? planFor(c).outLen : c.end - c.start;
             return (
               <article key={c.id} className={`clip ${on ? "on" : ""} ${playing?.id === c.id ? "playing" : ""}`}>
                 <div className="top">
-                  <span className="score" style={{ background: c.score >= 85 ? "#4ade80" : c.score >= 70 ? "#ffb547" : "#c8c8d0" }}>
-                    {c.score}
-                  </span>
+                  <ViralScore score={c.score} />
                   <span className="muted small">
-                    {fmtTime(c.start)} · {Math.round(c.end - c.start)}s
+                    {fmtTime(c.start)} · {Math.round(outLen)}s
+                    {outLen < c.end - c.start - 0.9 && <span style={{ color: "var(--purple-text)" }}> (−{Math.round(c.end - c.start - outLen)}s)</span>}
                   </span>
                   <button className={`check ${on ? "on" : ""}`} role="checkbox" aria-checked={on} aria-label={`Selecionar ${c.title}`} onClick={() => toggle(c.id)}>
                     {on && <Icon name="check" size={14} color="#fff" width={3.4} />}
                   </button>
                 </div>
+                {c.notes && (
+                  <div className="subScores" aria-label="Detalhe da nota">
+                    {(
+                      [
+                        ["Gancho", c.notes.gancho],
+                        ["Emoção", c.notes.emocao],
+                        ["Clareza", c.notes.clareza],
+                      ] as Array<[string, number]>
+                    ).map(([l, v]) => (
+                      <div key={l} className="subScore" title={`${l}: ${v}/100`}>
+                        <span>{l}</span>
+                        <div className="subBar">
+                          <div style={{ width: `${v}%`, background: scoreColor(v) }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <input className="titleInput" value={c.title} aria-label="Título do clipe" onChange={(e) => rename(c.id, e.target.value)} />
                 <span className="muted small" style={{ lineHeight: 1.45 }}>
                   {c.reason && <span className="badge ai" style={{ marginRight: 6 }}>{c.reason}</span>}“{c.hook}”
@@ -366,6 +443,7 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
               layout={project.layout ?? "cam-top"}
               webcam={project.layout === "cam-top" ? project.webcam : null}
               words={project.transcript ? wordsForClip(project.transcript.words, current) : []}
+              plan={currentPlan}
               model={captions && project.transcript ? previewModel : null}
               censor={settings.censor}
               watermark={!paid}
@@ -379,7 +457,7 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
               <div>
                 <b>{current.title}</b>
                 <div className="muted small" style={{ marginTop: 4 }}>
-                  {fmtTime(current.start)} → {fmtTime(current.end)} · {Math.round(current.end - current.start)} s · prévia com o formato e a legenda do vídeo final
+                  {fmtTime(current.start)} → {fmtTime(current.end)} · {Math.round(currentPlan?.outLen ?? current.end - current.start)} s · prévia com o formato, a legenda e a edição do vídeo final
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -475,4 +553,19 @@ function fileName(naming: FileNaming, i: number, title: string, project: string,
   if (naming === "data-titulo") return `${new Date().toISOString().slice(0, 10)}_${slugify(title)}_${fmt}.mp4`;
   if (naming === "projeto-numero") return `${slugify(project)}-${n}_${fmt}.mp4`;
   return `${n}-${slugify(title)}_${fmt}.mp4`;
+}
+
+function scoreColor(v: number): string {
+  return v >= 85 ? "#4ade80" : v >= 70 ? "#ffb547" : v >= 50 ? "#c8c8d0" : "#ff7a85";
+}
+
+/** Nota de viralidade: número + rótulo, com a cor da faixa. */
+function ViralScore({ score }: { score: number }) {
+  const label = score >= 85 ? "Viral" : score >= 70 ? "Forte" : score >= 50 ? "Bom" : "Fraco";
+  return (
+    <span className="viral" style={{ ["--vc" as string]: scoreColor(score) }} title={`Nota de viralidade: ${score}/100`}>
+      <b>{score >= 85 ? "🔥 " : ""}{score}</b>
+      <span>{label}</span>
+    </span>
+  );
 }

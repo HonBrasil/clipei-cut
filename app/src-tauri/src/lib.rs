@@ -60,6 +60,12 @@ fn prepare_fonts(app: tauri::AppHandle, dst: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn prepare_emojis(app: tauri::AppHandle, dst: String) -> Result<(), String> {
+    let src = app.path().resource_dir().map_err(|e| e.to_string())?.join("emoji");
+    files::copy_with_ext(&src, Path::new(&dst), "png")
+}
+
+#[tauri::command]
 fn open_path(app: tauri::AppHandle, path: String) -> Result<(), String> {
     app.opener().open_path(path, None::<&str>).map_err(|e| e.to_string())
 }
@@ -92,6 +98,7 @@ pub fn run() {
             temp_size,
             clear_temp,
             prepare_fonts,
+            prepare_emojis,
             open_path,
             reveal_path
         ])

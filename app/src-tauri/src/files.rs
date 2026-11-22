@@ -99,10 +99,15 @@ pub fn free_space(path: &str) -> Result<u64, String> {
 
 /// Copia as fontes das legendas para a pasta de trabalho do FFmpeg.
 pub fn copy_fonts(src: &Path, dst: &Path) -> Result<(), String> {
+    copy_with_ext(src, dst, "ttf")
+}
+
+/// Copia os arquivos com a extensão pedida (ex.: fontes .ttf, emojis .png) para a pasta de trabalho.
+pub fn copy_with_ext(src: &Path, dst: &Path, ext: &str) -> Result<(), String> {
     fs::create_dir_all(dst).map_err(|e| e.to_string())?;
     for entry in fs::read_dir(src).map_err(|e| e.to_string())?.flatten() {
         let p = entry.path();
-        if p.extension().map(|x| x.eq_ignore_ascii_case("ttf")).unwrap_or(false) {
+        if p.extension().map(|x| x.eq_ignore_ascii_case(ext)).unwrap_or(false) {
             let target = dst.join(entry.file_name());
             if !target.exists() {
                 fs::copy(&p, &target).map_err(|e| e.to_string())?;

@@ -17,6 +17,21 @@ import { Plans } from "../screens/Plans";
 import type { Account } from "../lib/account";
 import { Home } from "../screens/Home";
 import { Tour } from "../components/Tour";
+import { Clips } from "../screens/Clips";
+import type { Project } from "../lib/types";
+
+const W = (word: string, start: number, end: number) => ({ word, start, end });
+const DEMO: Project = {
+  id: "demo", createdAt: new Date().toISOString(),
+  video: { path: "C:/videos/live.mp4", name: "live_sexta.mp4", duration: 3600, width: 1920, height: 1080, fps: 60, hasAudio: true },
+  prefs: { minSec: 30, maxSec: 60 }, layout: "cam-top", webcam: { x: 1400, y: 700, w: 480, h: 360 },
+  transcript: { duration: 3600, segments: [{ start: 100, end: 160, text: "x" }], words: Array.from({ length: 120 }, (_, i) => W(["mano", "éé", "olha", "isso", "absurdo", "hum", "que", "jogada"][i % 8], 100 + i * 0.5, 100 + i * 0.5 + 0.35)) },
+  clips: [
+    { id: "a", start: 100, end: 150, title: "A jogada mais absurda da live", score: 92, reason: "Reação explosiva", hook: "Mano, olha isso!", notes: { gancho: 95, emocao: 90, clareza: 82 }, highlights: [{ word: "absurdo", emoji: "😱" }, { word: "jogada", emoji: "🔥" }] },
+    { id: "b", start: 300, end: 345, title: "Ele não esperava isso", score: 74, reason: "Momento engraçado", hook: "Que isso, cara?", notes: { gancho: 70, emocao: 80, clareza: 66 } },
+    { id: "c", start: 500, end: 540, title: "Dica rápida de mira", score: 58, reason: "Dica útil", hook: "Faz assim que melhora" },
+  ],
+};
 
 mockWindows("main");
 mockConvertFileSrc("windows");
@@ -52,6 +67,7 @@ createRoot(document.getElementById("root")!).render(
       <Sidebar screen={s} credits={acc.totalSeconds} account={acc} onNavigate={(n) => (location.search = `?s=${n}`)} onLogout={() => {}} />
       <main className="main">
         {s === "home" && <Home online credits={acc.totalSeconds} paid trialBlocked={false} onPlans={() => {}} onStart={() => {}} />}
+        {s === "clips" && <Clips project={DEMO} paid onChange={() => {}} onBack={() => {}} onPlans={() => {}} />}
         {s === "captions" && <Captions />}
         {s === "exports" && <Exports />}
         {s === "settings" && <Config email="voce@clipei.com.br" account={acc} online onLogout={() => {}} onOpenExports={() => {}} onAccount={() => {}} onPlans={() => {}} />}

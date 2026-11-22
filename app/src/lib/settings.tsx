@@ -58,6 +58,7 @@ export type Settings = {
   censor: boolean;
   autoUpdate: boolean;
   tourDone: boolean;
+  fx: { cutSilences: boolean; cutFillers: boolean; emojis: boolean; keywords: boolean; zoom: boolean };
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -73,6 +74,7 @@ export const DEFAULT_SETTINGS: Settings = {
   censor: false,
   autoUpdate: true,
   tourDone: false,
+  fx: { cutSilences: true, cutFillers: true, emojis: true, keywords: true, zoom: true },
 };
 
 export function allModels(s: Settings): CaptionModel[] {

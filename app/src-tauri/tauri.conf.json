@@ -65,7 +65,8 @@
     },
     "createUpdaterArtifacts": true,
     "resources": {
-      "resources/fonts/*": "fonts/"
+      "resources/fonts/*": "fonts/",
+      "resources/emoji/*": "emoji/"
     },
     "copyright": "© Clipei Studio Digital",
     "homepage": "https://clipeistudiodigital.com.br/",

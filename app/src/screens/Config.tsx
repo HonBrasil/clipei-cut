@@ -311,6 +311,9 @@ export function Config(props: {
               </button>
             )}
           </div>
+          <span className="muted" style={{ fontSize: 11 }}>
+            Emojis: Twemoji © Twitter/X e colaboradores, licença CC-BY 4.0. Vídeo processado com FFmpeg.
+          </span>
         </section>
 
         <section className="card" aria-labelledby="c-priv" style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 14 }}>
