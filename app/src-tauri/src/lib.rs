@@ -29,6 +29,11 @@ fn list_videos(dir: String) -> Vec<files::VideoFile> {
 }
 
 #[tauri::command]
+fn scan_recordings(dir: String) -> Vec<files::VideoFile> {
+    files::scan_recordings(&dir)
+}
+
+#[tauri::command]
 fn free_space(path: String) -> Result<u64, String> {
     files::free_space(&path)
 }
@@ -121,6 +126,7 @@ pub fn run() {
             device_id,
             ensure_dir,
             list_videos,
+            scan_recordings,
             free_space,
             temp_size,
             clear_temp,

@@ -17,12 +17,14 @@ import { Library } from "./screens/Library";
 import { Captions } from "./screens/Captions";
 import { Exports } from "./screens/Exports";
 import { Config } from "./screens/Config";
-import { saveProject } from "./lib/projects";
+import { loadProject, saveProject } from "./lib/projects";
 import { useOnline } from "./lib/online";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { OfflineBanner } from "./components/OfflineBanner";
 import { Tour } from "./components/Tour";
 import { Brand } from "./screens/Brand";
+import { WatchProvider } from "./lib/watch";
+import { WatchBanner } from "./components/WatchBanner";
 import { useSettings } from "./lib/settings";
 
 export function App() {
@@ -30,6 +32,7 @@ export function App() {
   const [ready, setReady] = useState(false);
   const [screen, setScreen] = useState<Screen>("home");
   const [project, setProject] = useState<Project | null>(null);
+  const [libKey, setLibKey] = useState(0);
   const [account, setAccount] = useState<Account | null>(null);
   const credits = account ? account.totalSeconds : null;
   const paid = Boolean(account && account.plan !== "free");
@@ -119,6 +122,13 @@ export function App() {
     );
 
   return (
+    <WatchProvider
+      active={Boolean(online && account && !needsTerms)}
+      paid={paid}
+      credits={credits}
+      onCredits={setCredits}
+      onProjectsChanged={() => setLibKey((k) => k + 1)}
+    >
     <div className="shell">
       <Sidebar
         screen={screen}
@@ -133,6 +143,16 @@ export function App() {
       />
       <main className="main">
         {!online && <OfflineBanner />}
+        <WatchBanner
+          onPlans={() => setScreen("plans")}
+          onOpen={async (id) => {
+            const p = await loadProject(id);
+            if (p) {
+              setProject(p);
+              setScreen(p.clips ? "clips" : "analysis");
+            }
+          }}
+        />
         {screen === "home" && (
           <Home
             online={online}
@@ -165,6 +185,7 @@ export function App() {
         {screen === "plans" && <Plans account={account} onAccount={setAccount} />}
         {screen === "library" && (
           <Library
+            key={libKey}
             onNew={() => setScreen("home")}
             onOpen={(p) => {
               setProject(p);
@@ -191,5 +212,6 @@ export function App() {
       )}
       {needsTerms && <TermsGate onAccepted={refreshCredits} onLogout={() => supabase.auth.signOut()} />}
     </div>
+    </WatchProvider>
   );
 }

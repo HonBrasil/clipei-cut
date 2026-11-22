@@ -25,6 +25,36 @@ function cover(src: Box, destAspect: number): Box {
   return { x: src.x, y: src.y + (src.h - h) / 2, w: src.w, h };
 }
 
+// Áreas cobertas pelos botões e textos de cada rede no vídeo vertical (em pixels de 1080x1920).
+type Zone = "off" | "tiktok" | "reels" | "shorts";
+const ZONES: Record<Exclude<Zone, "off">, { name: string; boxes: Array<{ x: number; y: number; w: number; h: number; label?: string }> }> = {
+  tiktok: {
+    name: "TikTok",
+    boxes: [
+      { x: 0, y: 0, w: 1080, h: 170, label: "Abas" },
+      { x: 900, y: 760, w: 180, h: 840, label: "Botões" },
+      { x: 0, y: 1500, w: 900, h: 420, label: "Nome e descrição" },
+    ],
+  },
+  reels: {
+    name: "Reels",
+    boxes: [
+      { x: 0, y: 0, w: 1080, h: 200, label: "Topo" },
+      { x: 920, y: 900, w: 160, h: 760, label: "Botões" },
+      { x: 0, y: 1560, w: 920, h: 360, label: "Nome e legenda" },
+    ],
+  },
+  shorts: {
+    name: "Shorts",
+    boxes: [
+      { x: 0, y: 0, w: 1080, h: 150, label: "Topo" },
+      { x: 920, y: 960, w: 160, h: 760, label: "Botões" },
+      { x: 0, y: 1610, w: 920, h: 310, label: "Título do canal" },
+    ],
+  },
+};
+const ZONE_KEY = "clipei-zona-segura";
+
 export function ClipPreview(props: {
   video: VideoInfo;
   clip: Clip;
@@ -41,6 +71,11 @@ export function ClipPreview(props: {
 }) {
   const { video, clip, layout, webcam, model, censor, watermark, seek, plan, speakers, brand } = props;
   const words = plan ? plan.words : props.words;
+  const [zone, setZone] = useState<Zone>(() => (localStorage.getItem(ZONE_KEY) as Zone) || "off");
+  const pickZone = (z: Zone) => {
+    setZone(z);
+    localStorage.setItem(ZONE_KEY, z);
+  };
   const vRef = useRef<HTMLVideoElement>(null);
   const cRef = useRef<HTMLCanvasElement>(null);
   const [t, setT] = useState(0); // tempo dentro do clipe
@@ -273,6 +308,15 @@ export function ClipPreview(props: {
           </span>
         )}
         {watermark && <span className="pvMark">Feito com Clipei Cut</span>}
+        {vertical && zone !== "off" && (
+          <div className="safeZones" aria-hidden>
+            {ZONES[zone].boxes.map((b, n) => (
+              <div key={n} className="safeBox" style={{ left: `${(b.x / 1080) * 100}%`, top: `${(b.y / 1920) * 100}%`, width: `${(b.w / 1080) * 100}%`, height: `${(b.h / 1920) * 100}%` }}>
+                {b.label && <span>{b.label}</span>}
+              </div>
+            ))}
+          </div>
+        )}
         {!playing && (
           <button className="pvPlay" onClick={toggle} aria-label="Reproduzir prévia">
             <Icon name="play" size={26} color="#fff" />
@@ -302,6 +346,23 @@ export function ClipPreview(props: {
         </span>
       </div>
 
+      {vertical && (
+        <div className="zonePick" style={{ width: "min(100%, 320px)" }}>
+          <span className="muted" style={{ fontSize: 12 }}>Zona segura</span>
+          <div className="seg sm" role="radiogroup" aria-label="Mostrar zona segura">
+            {(["off", "tiktok", "reels", "shorts"] as Zone[]).map((z) => (
+              <button key={z} role="radio" aria-checked={zone === z} className={zone === z ? "on" : ""} onClick={() => pickZone(z)}>
+                {z === "off" ? "Não" : ZONES[z].name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {vertical && zone !== "off" && model && hidden(ZONES[zone].boxes, captionY(layout, hasCam, model.position), fontSize / k) && (
+        <span className="zoneWarn" style={{ width: "min(100%, 320px)" }}>
+          ⚠️ A legenda fica atrás da interface do {ZONES[zone].name}. Mude a posição da legenda para “Meio” no modelo.
+        </span>
+      )}
       <video
         ref={vRef}
         src={src}
@@ -313,4 +374,11 @@ export function ClipPreview(props: {
       />
     </div>
   );
+}
+
+/** A faixa da legenda (centro y, altura ~2 linhas) cai numa área coberta que pega a largura toda? */
+function hidden(boxes: Array<{ x: number; y: number; w: number; h: number }>, y: number, font: number): boolean {
+  const top = y - font;
+  const bottom = y + font;
+  return boxes.some((b) => b.w >= 800 && bottom > b.y && top < b.y + b.h);
 }

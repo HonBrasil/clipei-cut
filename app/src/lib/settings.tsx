@@ -61,7 +61,18 @@ export type Settings = {
   fx: { cutSilences: boolean; cutFillers: boolean; emojis: boolean; keywords: boolean; zoom: boolean };
   formats: Array<"9x16" | "1x1" | "16x9">; // formatos exportados de uma vez
   brand: BrandKit;
+  watch: WatchSettings;
+  covers: boolean; // gerar capa junto com cada vídeo (planos pagos)
 };
+
+export type WatchSettings = {
+  on: boolean;
+  folder: string | null;
+  mode: "perguntar" | "automatico"; // pergunta antes de gastar horas, ou analisa sozinho
+  maxHours: number; // no automático, vídeos maiores que isso pedem confirmação
+  dur: 0 | 1 | 2; // 15–30 s, 30–60 s, 60–90 s
+};
+export const DEFAULT_WATCH: WatchSettings = { on: false, folder: null, mode: "perguntar", maxHours: 3, dur: 1 };
 
 export type LogoPos = "tl" | "tr" | "bl" | "br";
 export type BrandKit = {
@@ -106,6 +117,8 @@ export const DEFAULT_SETTINGS: Settings = {
   fx: { cutSilences: true, cutFillers: true, emojis: true, keywords: true, zoom: true },
   formats: ["9x16"],
   brand: DEFAULT_BRAND,
+  watch: DEFAULT_WATCH,
+  covers: true,
 };
 
 export function allModels(s: Settings): CaptionModel[] {
@@ -140,6 +153,7 @@ async function load(): Promise<Settings> {
       ...saved,
       fx: { ...DEFAULT_SETTINGS.fx, ...saved.fx },
       brand: { ...DEFAULT_BRAND, ...saved.brand, cta: { ...DEFAULT_BRAND.cta, ...saved.brand?.cta } },
+      watch: { ...DEFAULT_WATCH, ...saved.watch },
     };
   } catch {
     return DEFAULT_SETTINGS;

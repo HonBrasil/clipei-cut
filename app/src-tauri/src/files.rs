@@ -142,3 +142,40 @@ mod tests {
         let _ = fs::remove_dir_all(&base);
     }
 }
+
+/// Vídeos de gravação (mp4, mkv, mov, flv, webm) direto na pasta, sem subpastas. Usado pela pasta automática.
+pub fn scan_recordings(dir: &str) -> Vec<VideoFile> {
+    const EXTS: [&str; 5] = ["mp4", "mkv", "mov", "flv", "webm"];
+    let mut out = Vec::new();
+    let Ok(entries) = fs::read_dir(dir) else { return out };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Ok(meta) = entry.metadata() else { continue };
+        if !meta.is_file() {
+            continue;
+        }
+        let ok = path
+            .extension()
+            .and_then(|x| x.to_str())
+            .map(|x| EXTS.contains(&x.to_ascii_lowercase().as_str()))
+            .unwrap_or(false);
+        if !ok {
+            continue;
+        }
+        let modified_ms = meta
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        out.push(VideoFile {
+            path: path.to_string_lossy().to_string(),
+            name: path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
+            folder: String::new(),
+            size: meta.len(),
+            modified_ms,
+        });
+    }
+    out.sort_by(|a, b| b.modified_ms.cmp(&a.modified_ms));
+    out
+}

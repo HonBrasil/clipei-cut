@@ -7,6 +7,7 @@ export type VideoFile = { path: string; name: string; folder: string; size: numb
 
 export const ensureDir = (path: string) => invoke<void>("ensure_dir", { path });
 export const listVideos = (dir: string) => invoke<VideoFile[]>("list_videos", { dir });
+export const scanRecordings = (dir: string) => invoke<VideoFile[]>("scan_recordings", { dir });
 export const freeSpace = (path: string) => invoke<number>("free_space", { path });
 export const tempSize = () => invoke<number>("temp_size");
 export const clearTemp = () => invoke<void>("clear_temp");

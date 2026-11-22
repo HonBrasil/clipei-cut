@@ -2,11 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { join } from "@tauri-apps/api/path";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { Icon } from "../components/Icon";
-import { CancelledError, detectEncoder, encoderLabel, exportClip, workDir, type Encoder } from "../lib/ffmpeg";
+import { CancelledError, detectEncoder, encoderLabel, exportClip, exportCover, workDir, type Encoder } from "../lib/ffmpeg";
 import { brandActive, brandedModel, ctaOf, logoBox } from "../lib/brand";
-import { buildAss, captionY, censorIntervals } from "../lib/ass";
+import { buildAss, buildCoverAss, captionY, censorIntervals } from "../lib/ass";
 import { ensureDir, prepareEmojis, prepareFonts, revealPath } from "../lib/native";
-import { EMOJIS, planClip, zoomExpr as zoomExprOf, type EditOpts } from "../lib/edit";
+import { EMOJIS, fromOut, planClip, zoomExpr as zoomExprOf, type EditOpts } from "../lib/edit";
 import { allModels, exportDirOf, useSettings, type FileNaming } from "../lib/settings";
 import { findClips, generatePost, wordsForClip } from "../lib/ai";
 import { CaptionEditor } from "../components/CaptionEditor";
@@ -229,6 +229,24 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
             onProgress: (pct) => setJob(job.id, { pct }),
           });
           done.push(outPath);
+          // Capa (planos pagos): quadro forte do clipe + título grande, no mesmo formato
+          if (paid && settings.covers && !ctrl.signal.aborted) {
+            const kw = [...plan.keywords][0];
+            const tOut = kw !== undefined ? plan.words[kw].start : plan.outLen * 0.35;
+            const at = clip.start + (plan.cut ? fromOut(tOut, plan.keeps) : tOut);
+            const coverAss = `cover_${n}.ass`;
+            await writeTextFile(await join(wdir, coverAss), buildCoverAss(clip.title, layout, branded ? kit.color : model.highlight));
+            await exportCover({
+              video: project.video,
+              at,
+              layout,
+              webcam: layout === "cam-top" ? project.webcam : null,
+              workDir: wdir,
+              assFile: coverAss,
+              outPath: outPath.replace(/\.mp4$/i, "_capa.jpg"),
+              fx: { speakers, logo: branded && kit.logo ? { file: kit.logo, ...logoBox(kit, layout), opacity: kit.logoOpacity } : null },
+            }).catch((e) => console.warn("Capa não gerada", e));
+          }
           setJob(job.id, { status: "pronto", pct: 1, path: outPath });
         } catch (err) {
           if (err instanceof CancelledError || ctrl.signal.aborted) {
@@ -272,6 +290,14 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
             {selected.size === clips.length ? "Limpar seleção" : "Selecionar todos"}
           </button>
         </span>
+        <button
+          className={`fmtBtn ${paid && settings.covers ? "on" : ""}`}
+          aria-pressed={paid && settings.covers}
+          title={paid ? "Gera uma imagem de capa (JPG) junto com cada vídeo" : "Capa automática: disponível nos planos pagos"}
+          onClick={() => (paid ? update({ covers: !settings.covers }) : onPlans())}
+        >
+          🖼️ Capa {!paid && <span className="badge" style={{ marginLeft: 2 }}>Pago</span>}
+        </button>
         <div className="fmtPick" role="group" aria-label="Formatos para exportar">
           <span className="muted small">Formatos</span>
           {(["9x16", "1x1", "16x9"] as Format[]).map((f) => (

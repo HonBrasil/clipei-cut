@@ -38,3 +38,13 @@ export async function deleteProject(id: string): Promise<void> {
   const file = await join(await dir(), `${id}.json`);
   if (await exists(file)) await remove(file);
 }
+
+export async function loadProject(id: string): Promise<Project | null> {
+  const file = await join(await dir(), `${id}.json`);
+  if (!(await exists(file))) return null;
+  try {
+    return JSON.parse(await readTextFile(file)) as Project;
+  } catch {
+    return null;
+  }
+}

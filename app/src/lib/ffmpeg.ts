@@ -364,6 +364,30 @@ export async function exportClip(opts: {
   }
 }
 
+/** Capa do clipe: um quadro no formato final, com o título por cima (JPG). */
+export async function exportCover(opts: {
+  video: VideoInfo;
+  at: number; // segundo do vídeo original
+  layout: Layout;
+  webcam: Rect | null | undefined;
+  workDir: string;
+  assFile: string;
+  outPath: string;
+  fx?: Pick<Effects, "speakers" | "logo">;
+}): Promise<void> {
+  const fx = opts.fx ?? {};
+  const filter = buildFilter(opts.video, opts.layout, opts.webcam, opts.assFile, "1080p60", fx);
+  const args = [
+    "-y",
+    "-ss", Math.max(0, opts.at).toFixed(3), "-i", opts.video.path,
+    ...(fx.logo ? ["-i", fx.logo.file] : []),
+    "-filter_complex", filter, "-map", "[v]",
+    "-frames:v", "1", "-q:v", "2",
+    opts.outPath,
+  ];
+  await runWithProgress(args, 1, undefined, opts.workDir);
+}
+
 /** Silencia os palavrões e coloca um bip no lugar. */
 export function beepFilter(beeps: Array<[number, number]>, len: number, input = "[0:a:0]"): string {
   const expr = beeps.map(([a, b]) => `between(t,${a.toFixed(2)},${b.toFixed(2)})`).join("+");

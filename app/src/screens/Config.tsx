@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { check } from "@tauri-apps/plugin-updater";
 import { Icon } from "../components/Icon";
+import { WatchCard } from "../components/WatchCard";
 import { Toggle } from "../components/Toggle";
 import { cancelSubscription, deleteAccount, PLAN_INFO, type Account } from "../lib/account";
 import { deleteProject } from "../lib/projects";
@@ -278,6 +279,8 @@ export function Config(props: {
             <Toggle label="Bipar palavrões" hint="Coloca um bip no áudio e esconde a palavra na legenda. Bom para público jovem." on={settings.censor} onChange={(v) => update({ censor: v })} />
           </div>
         </section>
+
+        <WatchCard />
 
         <section className="card" aria-labelledby="c-app" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <h2 id="c-app" className="sub" style={{ fontSize: 18 }}>

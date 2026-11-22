@@ -192,3 +192,59 @@ export function buildAss(
 
   return [...header, ...lines, ""].join("\n");
 }
+
+// ---------- Capa do clipe (planos pagos) ----------
+
+/** Quebra o título em até 3 linhas equilibradas. */
+export function coverLines(title: string, maxChars: number): string[] {
+  const words = title.trim().replace(/\s+/g, " ").split(" ").filter(Boolean);
+  const lines: string[] = [];
+  let cur = "";
+  for (const w of words) {
+    if (cur && (cur + " " + w).length > maxChars) {
+      lines.push(cur);
+      cur = w;
+    } else cur = cur ? `${cur} ${w}` : w;
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+/** Legenda de um quadro só: o título grande, com a última linha na cor de destaque. */
+export function buildCoverAss(title: string, layout: Layout, accent: string): string {
+  const { w: playX, h: playY } = layoutSize(layout);
+  const vertical = playY > playX;
+  // Título em até 3 linhas: se não couber, a letra diminui
+  let size = vertical ? 178 : 150;
+  let chars = vertical ? 11 : layout === "square" ? 12 : 17;
+  let lines = coverLines(title.toUpperCase(), chars);
+  while (lines.length > 3 && size > 90) {
+    chars += 2;
+    size = Math.round(size * 0.88);
+    lines = coverLines(title.toUpperCase(), chars);
+  }
+  const y = vertical ? (layout === "podcast" ? 960 : 760) : layout === "square" ? 540 : 800;
+  const body = lines
+    .map((l, i) => (i === lines.length - 1 && lines.length > 1 ? `{\\c${assColor(accent)}}${clean(l)}{\\c${assColor("#FFFFFF")}}` : clean(l)))
+    .join("\\N");
+  const bandH = Math.round(lines.length * size * 1.08 + size * 0.7);
+  return [
+    "[Script Info]",
+    "ScriptType: v4.00+",
+    `PlayResX: ${playX}`,
+    `PlayResY: ${playY}`,
+    "WrapStyle: 2",
+    "ScaledBorderAndShadow: yes",
+    "",
+    "[V4+ Styles]",
+    "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
+    `Style: Capa,Anton,${size},${assColor("#FFFFFF")},${assColor("#FFFFFF")},${assColor("#000000")},${assColor("#000000", "60")},0,0,0,0,100,100,1,0,1,${Math.round(size * 0.09)},${Math.round(size * 0.07)},5,60,60,0,1`,
+    "",
+    "[Events]",
+    "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+    // Faixa escura atrás do título, para ler bem em qualquer imagem
+    `Dialogue: 0,${ts(0)},${ts(10)},Capa,,0,0,0,,{\\an7\\pos(0,${Math.round(y - bandH / 2)})\\p1\\bord0\\shad0\\1c&H000000&\\1a&H50&}m 0 0 l ${playX} 0 ${playX} ${bandH} 0 ${bandH}{\\p0}`,
+    `Dialogue: 1,${ts(0)},${ts(10)},Capa,,0,0,0,,{\\an5\\pos(${playX / 2},${y})}${body}`,
+    "",
+  ].join("\n");
+}

@@ -384,3 +384,27 @@ select.input { padding-right: 10px; }
   .brandGrid { grid-template-columns: 1fr; }
   .brandPreview { position: static; max-width: 300px; margin: 0 auto; }
 }
+
+/* Pasta automática */
+.watchStack { display: flex; flex-direction: column; gap: 10px; }
+.watchCard { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 14px; background: #15121e; border: 1px solid #3a2f5c; flex-wrap: wrap; animation: tourPop 0.22s ease-out; }
+.watchCard.ok { background: #101c16; border-color: #1f5136; }
+.watchCard.fail { background: #1d1012; border-color: #6b1d24; }
+.watchIcon { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--purple-tint); color: var(--purple-text); flex: none; }
+.watchCard.ok .watchIcon { background: #163524; color: #4ade80; }
+.watchCard.fail .watchIcon { background: #3a1519; color: #ff7a85; }
+.watchIcon.spin svg { animation: watchSpin 2.4s linear infinite; }
+@keyframes watchSpin { to { transform: rotate(360deg); } }
+.watchText { flex: 1 1 260px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.watchText b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.watchText span { font-size: 13px; color: var(--soft); }
+.watchActions { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (prefers-reduced-motion: reduce) { .watchIcon.spin svg { animation: none; } }
+
+/* Zona segura das redes na prévia */
+.safeZones { position: absolute; inset: 0; pointer-events: none; }
+.safeBox { position: absolute; background: repeating-linear-gradient(135deg, rgba(255, 59, 74, 0.26) 0 6px, rgba(255, 59, 74, 0.12) 6px 12px); border: 1px dashed rgba(255, 122, 133, 0.9); display: flex; align-items: flex-start; justify-content: flex-start; }
+.safeBox span { margin: 3px; padding: 1px 5px; border-radius: 4px; background: rgba(11, 11, 15, 0.8); color: #ffb3ba; font-size: 9px; font-weight: 700; white-space: nowrap; }
+.zonePick { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.seg.sm button { padding: 5px 9px; font-size: 12px; min-height: 30px; }
+.zoneWarn { font-size: 12px; color: #ffd27a; background: #2a2210; border: 1px solid #5a4614; border-radius: 10px; padding: 8px 10px; }
