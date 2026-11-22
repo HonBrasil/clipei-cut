@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Toggle } from "../components/Toggle";
 import { CaptionPreview } from "../components/CaptionPreview";
 import { loadCaptionFonts } from "../lib/native";
@@ -41,8 +41,32 @@ export function Captions() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selId]);
 
-  const dirty = JSON.stringify(draft) !== JSON.stringify(selected);
-  const set = (patch: Partial<CaptionModel>) => setDraft((d) => ({ ...d, ...patch }));
+  // Salvamento automático: modelo próprio salva na hora; modelo pronto vira uma cópia sua
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const set = (patch: Partial<CaptionModel>) => {
+    if (draft.builtin) {
+      const id = `meu-${Date.now().toString(36)}`;
+      const copy: CaptionModel = { ...draft, ...patch, id, name: `${draft.name} (meu)`, builtin: false };
+      update({
+        customModels: [...settings.customModels, copy],
+        // se o modelo pronto era o padrão, a cópia assume o lugar dele
+        captionModelId: settings.captionModelId === draft.id ? id : settings.captionModelId,
+      });
+      setDraft(copy);
+      setSelId(id);
+      flash(`Criamos “${copy.name}” com a sua alteração. Ela é salva automaticamente.`);
+      return;
+    }
+    const next = { ...draft, ...patch };
+    setDraft(next);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      update({ customModels: settings.customModels.map((m) => (m.id === next.id ? next : m)) });
+    }, 350);
+  };
+  useEffect(() => () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+  }, []);
 
   function flash(msg: string) {
     setSaved(msg);
@@ -57,10 +81,6 @@ export function Captions() {
     setSelId(id);
     flash("Modelo salvo!");
   }
-  function saveChanges() {
-    update({ customModels: settings.customModels.map((m) => (m.id === draft.id ? draft : m)) });
-    flash("Alterações salvas!");
-  }
   function remove() {
     update({
       customModels: settings.customModels.filter((m) => m.id !== draft.id),
@@ -69,8 +89,7 @@ export function Captions() {
     setSelId("destaque");
   }
   function makeDefault() {
-    if (dirty && !draft.builtin) saveChanges();
-    update({ captionModelId: draft.id });
+    update({ captionModelId: draft.id, customModels: settings.customModels.map((m) => (m.id === draft.id ? draft : m)) });
     flash("Agora este é o modelo padrão.");
   }
 
@@ -170,18 +189,15 @@ export function Captions() {
           {saved && <div className="note">{saved}</div>}
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <button className="btn primary" style={{ flex: "1 1 160px" }} onClick={makeDefault} disabled={draft.builtin && dirty}>
-              {settings.captionModelId === draft.id ? "Já é o padrão" : "Definir como padrão"}
+            <button className="btn primary" style={{ flex: "1 1 160px" }} onClick={makeDefault} disabled={settings.captionModelId === draft.id}>
+              {settings.captionModelId === draft.id ? "✓ Modelo padrão" : "Usar como padrão"}
             </button>
             {draft.builtin ? (
               <button className="btn" style={{ flex: "1 1 160px" }} onClick={saveAsNew}>
-                {dirty ? "Salvar como meu modelo" : "Duplicar modelo"}
+                Duplicar modelo
               </button>
             ) : (
               <>
-                <button className="btn" style={{ flex: "1 1 140px" }} onClick={saveChanges} disabled={!dirty}>
-                  Salvar alterações
-                </button>
                 <button className="btn" onClick={saveAsNew}>
                   Duplicar
                 </button>
@@ -191,7 +207,11 @@ export function Captions() {
               </>
             )}
           </div>
-          {draft.builtin && dirty && <span className="muted small">Modelos prontos não mudam: salve como seu modelo para usar estas alterações.</span>}
+          <span className="muted small">
+            {draft.builtin
+              ? "Ao mudar qualquer opção, criamos uma cópia sua deste modelo (o original continua disponível)."
+              : "As alterações são salvas automaticamente."}
+          </span>
         </section>
       </div>
     </>

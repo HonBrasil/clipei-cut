@@ -7,7 +7,7 @@ import { brandActive, brandedModel, ctaOf, logoBox } from "../lib/brand";
 import { buildAss, buildCoverAss, captionY, censorIntervals } from "../lib/ass";
 import { ensureDir, prepareEmojis, prepareFonts, revealPath } from "../lib/native";
 import { EMOJIS, fromOut, planClip, zoomExpr as zoomExprOf, type EditOpts } from "../lib/edit";
-import { allModels, exportDirOf, FONTS, useSettings, type FileNaming } from "../lib/settings";
+import { allModels, exportDirOf, FONTS, useSettings, type CaptionModel, type CaptionPos, type FileNaming } from "../lib/settings";
 import { findClips, generatePost, wordsForClip } from "../lib/ai";
 import { CaptionEditor } from "../components/CaptionEditor";
 import { ClipPreview } from "../components/ClipPreview";
@@ -62,7 +62,10 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
   const current = clips.find((c) => c.id === playing?.id) ?? null;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const currentPlan = useMemo(() => (current && project.transcript ? planFor(current) : undefined), [current, project.transcript, fx.cutSilences, fx.cutFillers, fx.emojis, fx.keywords, fx.zoom]);
-  const previewModel = models.find((m) => m.id === modelId) ?? models[0];
+  // Posição da legenda escolhida aqui vale para a prévia e a exportação deste projeto
+  const [captionPos, setCaptionPos] = useState<CaptionPos | null>(project.captionPos ?? null);
+  const withPos = (m: CaptionModel): CaptionModel => (captionPos ? { ...m, position: captionPos } : m);
+  const previewModel = withPos(models.find((m) => m.id === modelId) ?? models[0]);
 
   function toggle(id: string) {
     setSelected((s) => {
@@ -177,7 +180,7 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
       if (fx.emojis) await prepareEmojis(await join(wdir, "emoji")).catch(() => {});
       const kit = settings.brand;
       const branded = brandActive(kit, paid);
-      const model = brandedModel(models.find((m) => m.id === modelId) ?? models[0], kit, paid);
+      const model = brandedModel(withPos(models.find((m) => m.id === modelId) ?? models[0]), kit, paid);
       const cta = ctaOf(kit, paid);
       const withCaptions = captions && Boolean(project.transcript);
 
@@ -318,6 +321,32 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
               </option>
             ))}
           </select>
+          <div className="seg" role="radiogroup" aria-label="Posição da legenda" title="Posição da legenda neste projeto">
+            {(
+              [
+                ["topo", "Topo"],
+                ["meio", "Meio"],
+                ["baixo", "Embaixo"],
+              ] as Array<[CaptionPos, string]>
+            ).map(([pos, label]) => {
+              const on = (captionPos ?? previewModel.position) === pos;
+              return (
+                <button
+                  key={pos}
+                  role="radio"
+                  aria-checked={on}
+                  className={on ? "on" : ""}
+                  disabled={!captions}
+                  onClick={() => {
+                    setCaptionPos(pos);
+                    onChange((p) => ({ ...p, captionPos: pos }));
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
           <label className="small" style={{ display: "flex", gap: 8, alignItems: "center", color: "var(--soft)" }}>
             <input type="checkbox" checked={settings.censor} onChange={(e) => update({ censor: e.target.checked })} /> Bipar palavrões
           </label>

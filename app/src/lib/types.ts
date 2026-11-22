@@ -72,6 +72,7 @@ export type Project = {
   transcript?: Transcript;
   clips?: Clip[];
   webcam?: Rect | null; // em pixels do vídeo original
+  captionPos?: "topo" | "meio" | "baixo"; // posição da legenda escolhida na tela de clipes
   speakers?: [Rect, Rect] | null; // podcast: área de cada pessoa (proporção 9:8), em pixels do vídeo original
   layout?: Layout;
   frameUrl?: string; // quadro de referência (data URL JPEG, salvo junto com o projeto)
