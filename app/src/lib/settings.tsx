@@ -57,6 +57,7 @@ export type Settings = {
   clipsAmount: ClipsAmount;
   censor: boolean;
   autoUpdate: boolean;
+  tourDone: boolean;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -71,6 +72,7 @@ export const DEFAULT_SETTINGS: Settings = {
   clipsAmount: "equilibrado",
   censor: false,
   autoUpdate: true,
+  tourDone: false,
 };
 
 export function allModels(s: Settings): CaptionModel[] {

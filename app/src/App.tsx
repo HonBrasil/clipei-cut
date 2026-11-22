@@ -21,6 +21,8 @@ import { saveProject } from "./lib/projects";
 import { useOnline } from "./lib/online";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { OfflineBanner } from "./components/OfflineBanner";
+import { Tour } from "./components/Tour";
+import { useSettings } from "./lib/settings";
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -32,6 +34,8 @@ export function App() {
   const paid = Boolean(account && account.plan !== "free");
 
   const online = useOnline();
+  const { settings, update: updateSettings, loaded: settingsLoaded } = useSettings();
+  const [tourOpen, setTourOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -61,6 +65,22 @@ export function App() {
     }
   }, [account, refreshCredits]);
   const needsTerms = Boolean(account && account.termsVersion !== TERMS_VERSION && localStorage.getItem(PENDING_TERMS_KEY) !== TERMS_VERSION);
+
+  // Tutorial no primeiro acesso deste computador (depois do aceite dos termos)
+  useEffect(() => {
+    if (settingsLoaded && !settings.tourDone && account && !needsTerms && screen === "home") {
+      const t = setTimeout(() => setTourOpen(true), 600);
+      return () => clearTimeout(t);
+    }
+  }, [settingsLoaded, settings.tourDone, account, needsTerms, screen]);
+  const startTour = useCallback(() => {
+    setScreen("home");
+    setTimeout(() => setTourOpen(true), 120);
+  }, []);
+  const finishTour = useCallback(() => {
+    setTourOpen(false);
+    if (!settings.tourDone) updateSettings({ tourDone: true });
+  }, [settings.tourDone, updateSettings]);
 
   // Ao entrar: registra o computador e libera a hora de teste se ele ainda não usou
   const [trial, setTrial] = useState<TrialStatus | null>(null);
@@ -136,6 +156,7 @@ export function App() {
             online={online}
             onLogout={() => supabase.auth.signOut()}
             onOpenExports={() => setScreen("exports")}
+            onTour={startTour}
           />
         )}
         {screen === "admin" && <Admin />}
@@ -163,6 +184,9 @@ export function App() {
         {screen === "clips" && project && <Clips project={project} paid={paid} onChange={update} onBack={() => setScreen("analysis")} onPlans={() => setScreen("plans")} />}
       </main>
       <UpdateDialog online={online} />
+      {tourOpen && screen === "home" && (
+        <Tour onFinish={finishTour} onLastAction={() => document.querySelector<HTMLButtonElement>('[data-tour="drop"]')?.click()} />
+      )}
       {needsTerms && <TermsGate onAccepted={refreshCredits} onLogout={() => supabase.auth.signOut()} />}
     </div>
   );

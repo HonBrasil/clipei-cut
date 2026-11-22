@@ -281,3 +281,31 @@ select.input { padding-right: 10px; }
   .userRow { grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr) 0.8fr; }
   .hideSm { display: none; }
 }
+
+/* Tutorial guiado */
+.tour { position: fixed; inset: 0; z-index: 1000; }
+.tourDim { position: absolute; inset: 0; background: rgba(5, 5, 8, 0.74); animation: tourFade 0.2s ease-out; }
+.tourHole { position: absolute; border-radius: 14px; box-shadow: 0 0 0 9999px rgba(5, 5, 8, 0.74), 0 0 0 2px var(--red-text), 0 0 28px 4px rgba(255, 59, 74, 0.35); transition: top 0.28s ease, left 0.28s ease, width 0.28s ease, height 0.28s ease; pointer-events: none; }
+.tourBlock { position: absolute; inset: 0; }
+.tourCard { position: absolute; z-index: 2; display: flex; flex-direction: column; gap: 10px; padding: 18px 18px 16px; border-radius: 16px; background: #15151b; border: 1px solid var(--line2); box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6); transition: top 0.28s ease, left 0.28s ease; animation: tourPop 0.22s ease-out; outline: none; }
+.tourCard.hero { padding: 24px 22px 20px; background: linear-gradient(160deg, #1b1424 0%, #15151b 55%); border-color: #3a2c55; }
+.tourCard h2 { margin: 0; font-family: "Space Grotesk", sans-serif; font-size: 19px; line-height: 1.25; }
+.tourCard.hero h2 { font-size: 22px; }
+.tourCard p { margin: 0; font-size: 14px; line-height: 1.55; color: var(--soft); }
+.tourCard .tourTip { font-size: 13px; color: var(--purple-text); padding: 8px 10px; border-radius: 10px; background: var(--purple-tint); }
+.tourTop { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.tourCount { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--red-text); }
+.tourSkip { font-size: 13px; color: var(--muted); }
+.tourSkip:hover { color: var(--text); }
+.tourDots { display: flex; gap: 5px; margin-top: 2px; }
+.tourDots span { width: 6px; height: 6px; border-radius: 99px; background: #2c2c36; transition: width 0.2s ease, background 0.2s ease; }
+.tourDots span.done { background: #6b1d24; }
+.tourDots span.on { width: 18px; background: var(--red-text); }
+.tourActions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.tourActions .btn { min-height: 40px; }
+@keyframes tourFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tourPop { from { opacity: 0; transform: translateY(6px) scale(0.98); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .tourHole, .tourCard { transition: none; animation: none; }
+  .tourDim { animation: none; }
+}

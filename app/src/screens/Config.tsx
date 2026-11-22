@@ -20,10 +20,11 @@ export function Config(props: {
   online: boolean;
   onLogout: () => void;
   onOpenExports: () => void;
+  onTour?: () => void;
   onAccount: () => void;
   onPlans: () => void;
 }) {
-  const { email, account, online, onLogout, onOpenExports, onAccount, onPlans } = props;
+  const { email, account, online, onLogout, onOpenExports, onAccount, onPlans, onTour } = props;
   const credits = account ? account.totalSeconds : null;
   const [cancelState, setCancelState] = useState<"idle" | "confirm" | "busy" | "done">("idle");
   const [cancelMsg, setCancelMsg] = useState<string | null>(null);
@@ -300,9 +301,16 @@ export function Config(props: {
           <span className="small" style={{ color: "var(--soft)", lineHeight: 1.5 }}>
             Dúvida, problema ou sugestão? Fale com a equipe da Clipei Studio Digital pelo WhatsApp. A mensagem já vai com a versão do seu app.
           </span>
-          <button className="btn primary" style={{ alignSelf: "flex-start", background: "#1f9d55", borderColor: "#1f9d55" }} onClick={() => openSupport()}>
-            <Icon name="chat" size={16} /> Falar no WhatsApp
-          </button>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+            <button className="btn primary" style={{ background: "#1f9d55", borderColor: "#1f9d55" }} onClick={() => openSupport()}>
+              <Icon name="chat" size={16} /> Falar no WhatsApp
+            </button>
+            {onTour && (
+              <button className="btn" onClick={onTour}>
+                Rever o tutorial
+              </button>
+            )}
+          </div>
         </section>
 
         <section className="card" aria-labelledby="c-priv" style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 14 }}>

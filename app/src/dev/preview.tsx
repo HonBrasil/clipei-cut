@@ -1,7 +1,7 @@
 // Só para desenvolvimento: mostra as telas no navegador, sem o Tauri.
 // Abrir com: npm run dev -> http://localhost:1420/preview.html?s=captions
 import { createRoot } from "react-dom/client";
-import { mockIPC, mockConvertFileSrc } from "@tauri-apps/api/mocks";
+import { mockIPC, mockConvertFileSrc, mockWindows } from "@tauri-apps/api/mocks";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/600.css";
 import "@fontsource/inter/700.css";
@@ -15,7 +15,10 @@ import { Exports } from "../screens/Exports";
 import { Config } from "../screens/Config";
 import { Plans } from "../screens/Plans";
 import type { Account } from "../lib/account";
+import { Home } from "../screens/Home";
+import { Tour } from "../components/Tour";
 
+mockWindows("main");
 mockConvertFileSrc("windows");
 const day = 86_400_000;
 mockIPC((cmd, args: any) => {
@@ -48,11 +51,13 @@ createRoot(document.getElementById("root")!).render(
     <div className="shell">
       <Sidebar screen={s} credits={acc.totalSeconds} account={acc} onNavigate={(n) => (location.search = `?s=${n}`)} onLogout={() => {}} />
       <main className="main">
+        {s === "home" && <Home online credits={acc.totalSeconds} paid trialBlocked={false} onPlans={() => {}} onStart={() => {}} />}
         {s === "captions" && <Captions />}
         {s === "exports" && <Exports />}
         {s === "settings" && <Config email="voce@clipei.com.br" account={acc} online onLogout={() => {}} onOpenExports={() => {}} onAccount={() => {}} onPlans={() => {}} />}
         {s === "plans" && <Plans account={{ ...acc, plan: "free", allowanceSeconds: 3600, totalSeconds: 2280, extraSeconds: 0, hasSubscription: false }} onAccount={() => {}} />}
       </main>
+      {new URLSearchParams(location.search).has("tour") && <Tour startAt={Number(new URLSearchParams(location.search).get("tour"))} onFinish={() => {}} />}
     </div>
   </SettingsProvider>,
 );

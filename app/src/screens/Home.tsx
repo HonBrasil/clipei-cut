@@ -115,7 +115,7 @@ export function Home({
         </div>
       )}
 
-      <button className={`drop ${over ? "over" : ""}`} onClick={pick} disabled={busy}>
+      <button data-tour="drop" className={`drop ${over ? "over" : ""}`} onClick={pick} disabled={busy}>
         <div className="icon">
           <Icon name="upload" size={28} color="#ff3b4a" />
         </div>
@@ -140,7 +140,7 @@ export function Home({
         </div>
       )}
 
-      <section className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }} aria-labelledby="dur">
+      <section data-tour="duracao" className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }} aria-labelledby="dur">
         <h2 id="dur" className="sub" style={{ fontSize: 16 }}>
           Duração dos clipes
         </h2>
@@ -154,7 +154,7 @@ export function Home({
         <span className="muted small">A legenda em português é gerada automaticamente. Só o áudio vai para a IA.</span>
       </section>
 
-      <section className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }} aria-labelledby="qtd">
+      <section data-tour="quantidade" className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }} aria-labelledby="qtd">
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <h2 id="qtd" className="sub" style={{ fontSize: 16 }}>
             Quantos clipes gerar

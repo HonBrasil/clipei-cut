@@ -32,7 +32,7 @@ export function Sidebar(props: {
       <button className={`nav-item ${inNew ? "active" : ""}`} onClick={() => onNavigate("home")} aria-current={inNew ? "page" : undefined}>
         <Icon name="plus" /> <span className="label">Novo projeto</span>
       </button>
-      <button className={`nav-item ${inLib ? "active" : ""}`} onClick={() => onNavigate("library")} aria-current={inLib ? "page" : undefined}>
+      <button data-tour="nav-library" className={`nav-item ${inLib ? "active" : ""}`} onClick={() => onNavigate("library")} aria-current={inLib ? "page" : undefined}>
         <Icon name="grid" /> <span className="label">Meus clipes</span>
       </button>
       {(
@@ -42,7 +42,7 @@ export function Sidebar(props: {
           ["settings", "gear", "Configurações"],
         ] as Array<[Screen, string, string]>
       ).map(([id, icon, label]) => (
-        <button key={id} className={`nav-item ${screen === id ? "active" : ""}`} onClick={() => onNavigate(id)} aria-current={screen === id ? "page" : undefined}>
+        <button key={id} data-tour={`nav-${id}`} className={`nav-item ${screen === id ? "active" : ""}`} onClick={() => onNavigate(id)} aria-current={screen === id ? "page" : undefined}>
           <Icon name={icon} /> <span className="label">{label}</span>
         </button>
       ))}
@@ -52,11 +52,11 @@ export function Sidebar(props: {
           <Icon name="grid" color="#b9a3ff" /> <span className="label">Painel admin</span>
         </button>
       )}
-      <button className="nav-item" onClick={() => openSupport()} title="Falar com o suporte no WhatsApp">
+      <button data-tour="nav-support" className="nav-item" onClick={() => openSupport()} title="Falar com o suporte no WhatsApp">
         <Icon name="chat" color="#4ade80" /> <span className="label">Suporte (WhatsApp)</span>
       </button>
 
-      <div className="credits">
+      <div className="credits" data-tour="credits">
         <div className="row">
           <span>{account ? `Plano ${PLAN_INFO[account.plan].name}` : "Créditos de IA"}</span>
           <b>{credits == null ? "—" : fmtHours(credits)}</b>
