@@ -12,6 +12,7 @@ export const freeSpace = (path: string) => invoke<number>("free_space", { path }
 export const tempSize = () => invoke<number>("temp_size");
 export const clearTemp = () => invoke<void>("clear_temp");
 export const prepareFonts = (dst: string) => invoke<void>("prepare_fonts", { dst });
+export const saveBytes = (path: string, data: Uint8Array) => invoke<void>("save_bytes", { path, data: Array.from(data) });
 export const importLogo = (src: string) => invoke<string>("import_logo", { src });
 export const prepareEmojis = (dst: string) => invoke<void>("prepare_emojis", { dst });
 export const openPath = (path: string) => invoke<void>("open_path", { path });

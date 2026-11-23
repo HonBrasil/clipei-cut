@@ -2,7 +2,7 @@
 // - "recorrente": assinatura mensal no cartão, renova sozinha (Mercado Pago Assinaturas)
 // - "unico": pagamento único (Pix, cartão ou boleto) — anual, 1 mês avulso ou horas extras
 import { admin, corsHeaders, env, fail, json, requireUser } from "../_shared/common.ts";
-import { CATALOG, makeRef } from "../_shared/catalog.ts";
+import { CATALOG, discounted, makeRef } from "../_shared/catalog.ts";
 import { mp } from "../_shared/mp.ts";
 
 const BACK_URL = Deno.env.get("CHECKOUT_BACK_URL") ?? "https://clipeistudiodigital.com.br/";
@@ -20,7 +20,15 @@ Deno.serve(async (req) => {
   if (!product) return fail("produto", "Plano inválido.");
   if (method === "recorrente" && product.period !== "mensal") return fail("produto", "Só os planos mensais podem renovar sozinhos.");
 
-  const ref = makeRef(user.id, product.id);
+  // Seguidor de criador parceiro: desconto no 1º pagamento de plano
+  let discount = 0;
+  if (product.kind === "plano") {
+    const { data: d } = await admin().rpc("follower_discount", { p_user: user.id });
+    discount = Math.max(0, Math.min(50, Number(d) || 0));
+  }
+  const price = discount ? discounted(product.price, discount) : product.price;
+  const title = discount ? `${product.title} · ${discount}% OFF no 1º pagamento` : product.title;
+  const ref = makeRef(user.id, product.id, discount);
   const notify = `${env("SUPABASE_URL")}/functions/v1/mp-webhook`;
 
   try {
@@ -38,10 +46,10 @@ Deno.serve(async (req) => {
       const sub = await mp<{ init_point: string }>("/preapproval", {
         method: "POST",
         body: JSON.stringify({
-          reason: product.title,
+          reason: title,
           external_reference: ref,
           payer_email: user.email,
-          auto_recurring: { frequency: 1, frequency_type: "months", transaction_amount: product.price, currency_id: "BRL" },
+          auto_recurring: { frequency: 1, frequency_type: "months", transaction_amount: price, currency_id: "BRL" },
           back_url: BACK_URL,
           status: "pending",
         }),
@@ -52,7 +60,7 @@ Deno.serve(async (req) => {
     const pref = await mp<{ init_point: string }>("/checkout/preferences", {
       method: "POST",
       body: JSON.stringify({
-        items: [{ id: product.id, title: product.title, quantity: 1, unit_price: product.price, currency_id: "BRL" }],
+        items: [{ id: product.id, title, quantity: 1, unit_price: price, currency_id: "BRL" }],
         payer: { email: user.email },
         external_reference: ref,
         notification_url: notify,

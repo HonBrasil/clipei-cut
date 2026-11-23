@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Icon } from "../components/Icon";
 import { applyReferral, fetchReferral, shareText, type Referral as Ref } from "../lib/referral";
+import { Creator } from "./Creator";
 
 const hrs = (s: number) => `${(s / 3600).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} h`;
 
@@ -42,6 +43,9 @@ export function Referral({ onPlans }: { onPlans: () => void }) {
       setBusy(false);
     }
   }
+
+  // Conta de criador parceiro: o "Indique e ganhe" vira o painel do criador
+  if (data?.isCreator) return <Creator />;
 
   return (
     <>
@@ -142,6 +146,9 @@ export function Referral({ onPlans }: { onPlans: () => void }) {
             </button>
           </div>
           {applyMsg && <div className={applyMsg.ok ? "okMsg" : "error"}>{applyMsg.text}</div>}
+          {applyMsg?.ok && (data.followerDiscount ?? 0) > 0 && (
+            <div className="okMsg">Esse é um cupom de criador: você tem {data.followerDiscount}% OFF no primeiro pagamento de qualquer plano. 🎉</div>
+          )}
           {applyMsg?.ok && (
             <button className="btn" style={{ alignSelf: "flex-start" }} onClick={onPlans}>
               Ver planos

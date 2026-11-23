@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { brl } from "../lib/account";
 import { AdminUsers, UserDrawer } from "./AdminUsers";
+import { AdminCreators } from "./AdminCreators";
 
 type Stats = {
   generatedAt: string;
@@ -29,7 +30,7 @@ export function Admin() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [view, setView] = useState<"geral" | "usuarios">("geral");
+  const [view, setView] = useState<"geral" | "usuarios" | "criadores">("geral");
   const [openUser, setOpenUser] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -90,9 +91,13 @@ export function Admin() {
         <button role="tab" aria-selected={view === "usuarios"} className={view === "usuarios" ? "on" : ""} onClick={() => setView("usuarios")}>
           Usuários
         </button>
+        <button role="tab" aria-selected={view === "criadores"} className={view === "criadores" ? "on" : ""} onClick={() => setView("criadores")}>
+          Criadores
+        </button>
       </div>
 
       {view === "usuarios" && <AdminUsers onOpen={setOpenUser} />}
+      {view === "criadores" && <AdminCreators onOpen={setOpenUser} />}
       {openUser && <UserDrawer userId={openUser} onClose={() => setOpenUser(null)} onChanged={() => setStatsStale(true)} />}
 
       {view === "geral" && error && <div className="error">Não consegui carregar o painel: {error}</div>}

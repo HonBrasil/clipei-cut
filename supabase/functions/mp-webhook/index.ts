@@ -1,7 +1,7 @@
 // Recebe os avisos do Mercado Pago. Nunca confia no conteúdo do aviso:
 // sempre consulta o pagamento/assinatura direto na API antes de liberar algo.
 import { admin, json } from "../_shared/common.ts";
-import { parseRef } from "../_shared/catalog.ts";
+import { discounted, parseRef } from "../_shared/catalog.ts";
 import { mp, validSignature } from "../_shared/mp.ts";
 
 type Payment = {
@@ -46,7 +46,8 @@ async function onPayment(id: string) {
   if (subId) return applySubscriptionPayment(subId, String(pay.id), pay.transaction_amount, pay.payment_method_id);
   const ref = parseRef(pay.external_reference);
   if (!ref) return console.warn("Pagamento sem referência do Clipei Cut", id);
-  if (Math.abs(pay.transaction_amount - ref.product.price) > 0.01) return console.error("Valor diferente do catálogo", id, pay.transaction_amount);
+  const expected = ref.discount ? discounted(ref.product.price, ref.discount) : ref.product.price;
+  if (Math.abs(pay.transaction_amount - expected) > 0.01) return console.error("Valor diferente do catálogo", id, pay.transaction_amount);
   await apply(ref.userId, String(pay.id), ref.product.id, pay.transaction_amount, pay.payment_method_id ?? "mp", null);
 }
 
@@ -64,6 +65,13 @@ async function applySubscriptionPayment(preapprovalId: string, paymentId: string
   const { data: prof } = await db.from("profiles").select("mp_preapproval_id").eq("id", ref.userId).single();
   const applied = await apply(ref.userId, paymentId, ref.product.id, amount || ref.product.price, method ?? "cartao_recorrente", preapprovalId);
   // Trocou de plano: cancela a assinatura antiga para não cobrar duas vezes
+  // Desconto de seguidor vale só no 1º pagamento: a partir daí a assinatura cobra o preço cheio
+  if (applied && ref.discount > 0) {
+    await mp(`/preapproval/${preapprovalId}`, {
+      method: "PUT",
+      body: JSON.stringify({ auto_recurring: { transaction_amount: ref.product.price, currency_id: "BRL" } }),
+    }).catch((e) => console.error("voltar ao preço cheio", e));
+  }
   const old = prof?.mp_preapproval_id as string | null;
   if (applied && old && old !== preapprovalId) {
     await mp(`/preapproval/${old}`, { method: "PUT", body: JSON.stringify({ status: "cancelled" }) }).catch((e) => console.error("cancelar antiga", e));

@@ -3,6 +3,7 @@ import { Icon } from "../components/Icon";
 import { brl, fetchAccount, HOUR_PACKS, PLAN_INFO, startCheckout, type Account, type PlanId } from "../lib/account";
 import { fmtHours } from "../lib/format";
 import { GROUP_PRICES, GROUP_SIZES, type GroupPlan } from "../lib/groups";
+import { fetchReferral } from "../lib/referral";
 
 type Period = "mensal" | "anual";
 
@@ -10,6 +11,12 @@ export function Plans({ account, onAccount, onGroup }: { account: Account | null
   const [period, setPeriod] = useState<Period>("mensal");
   const [kind, setKind] = useState<"individual" | "grupo">("individual");
   const [gPlan, setGPlan] = useState<GroupPlan>("pro");
+  const [followerOff, setFollowerOff] = useState(0);
+  useEffect(() => {
+    fetchReferral()
+      .then((r) => setFollowerOff(r.followerDiscount ?? 0))
+      .catch(() => {});
+  }, []);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ kind: "ok" | "error" | "wait"; text: string } | null>(null);
   const before = useRef<string>("");
@@ -87,6 +94,11 @@ export function Plans({ account, onAccount, onGroup }: { account: Account | null
       )}
 
       {msg && <div className={msg.kind === "error" ? "error" : "note"}>{msg.text}</div>}
+      {followerOff > 0 && (
+        <div className="okMsg">
+          🎁 Você entrou com o cupom de um criador: <b>{followerOff}% OFF no primeiro pagamento</b> de qualquer plano. O desconto aparece na tela do Mercado Pago.
+        </div>
+      )}
 
       <div className="planKinds" role="tablist" aria-label="Tipo de plano">
         <button role="tab" aria-selected={kind === "individual"} className={kind === "individual" ? "on" : ""} onClick={() => setKind("individual")}>

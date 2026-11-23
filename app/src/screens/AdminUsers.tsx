@@ -20,6 +20,8 @@ const ACTION: Record<string, string> = {
   plano_removido: "Plano removido",
   plano_estendido: "Plano estendido",
   renovacao_cancelada: "Renovação cancelada",
+  criador_definido: "Virou criador parceiro",
+  criador_desativado: "Criador desativado",
 };
 
 export async function adminCall<T>(body: Record<string, unknown>): Promise<T> {

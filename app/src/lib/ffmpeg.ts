@@ -13,7 +13,7 @@ async function run(bin: "ffmpeg" | "ffprobe", args: string[], cwd?: string): Pro
 }
 
 /** Roda o FFmpeg reportando o progresso (0 a 1) com base na duração esperada. */
-async function runWithProgress(
+export async function runWithProgress(
   args: string[],
   expectedSec: number,
   onProgress?: (p: number) => void,

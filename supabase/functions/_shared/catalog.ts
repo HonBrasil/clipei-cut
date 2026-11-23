@@ -34,14 +34,21 @@ export const CATALOG: Record<string, Product> = {
 };
 
 /** external_reference: "<user_id>|<produto>" */
-export function makeRef(userId: string, productId: string): string {
-  return `${userId}|${productId}`;
+/** Referência do pagamento. discount = % de desconto do seguidor de criador no 1º pagamento. */
+export function makeRef(userId: string, productId: string, discount = 0): string {
+  return discount > 0 ? `${userId}|${productId}|d${discount}` : `${userId}|${productId}`;
 }
 
-export function parseRef(ref: string | null | undefined): { userId: string; product: Product } | null {
+export function discounted(price: number, pct: number): number {
+  return Math.round(price * (100 - pct)) / 100;
+}
+
+export function parseRef(ref: string | null | undefined): { userId: string; product: Product; discount: number } | null {
   if (!ref) return null;
-  const [userId, productId] = ref.split("|");
+  const [userId, productId, extra] = ref.split("|");
   const product = CATALOG[productId];
   if (!userId || !product || !/^[0-9a-f-]{36}$/i.test(userId)) return null;
-  return { userId, product };
+  const d = /^d(\d{1,2})$/.exec(extra ?? "");
+  const discount = d ? Math.min(50, Number(d[1])) : 0;
+  return { userId, product, discount };
 }

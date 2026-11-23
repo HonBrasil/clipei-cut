@@ -97,6 +97,23 @@ fn import_logo(app: tauri::AppHandle, src: String) -> Result<String, String> {
     Ok(dst.to_string_lossy().into_owned())
 }
 
+/// Salva um arquivo gerado no app (artes de divulgação) no caminho escolhido pela pessoa.
+#[tauri::command]
+fn save_bytes(path: String, data: Vec<u8>) -> Result<(), String> {
+    let p = Path::new(&path);
+    let ext = p.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase()).unwrap_or_default();
+    if !["png", "jpg", "jpeg"].contains(&ext.as_str()) {
+        return Err("Formato não permitido.".into());
+    }
+    if data.len() > 30 * 1024 * 1024 {
+        return Err("Arquivo grande demais.".into());
+    }
+    if let Some(dir) = p.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(p, data).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn open_path(app: tauri::AppHandle, path: String) -> Result<(), String> {
     app.opener().open_path(path, None::<&str>).map_err(|e| e.to_string())
@@ -133,6 +150,7 @@ pub fn run() {
             prepare_fonts,
             prepare_emojis,
             import_logo,
+            save_bytes,
             open_path,
             reveal_path
         ])

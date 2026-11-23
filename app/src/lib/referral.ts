@@ -12,6 +12,8 @@ export type Referral = {
   referredBy: string | null;
   canApply: boolean;
   friendRewarded: boolean;
+  followerDiscount?: number;
+  isCreator?: boolean;
 };
 
 /** Código digitado no cadastro, aplicado depois do primeiro login. */

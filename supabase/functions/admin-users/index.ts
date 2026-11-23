@@ -35,7 +35,49 @@ Deno.serve(async (req) => {
       return json({ total: Number(rows[0]?.total ?? 0), users: rows.map(({ total: _t, ...r }) => r) });
     }
 
+    if (action === "creators") {
+      const { data, error } = await db.rpc("admin_creators");
+      if (error) throw error;
+      return json({ creators: data ?? [] });
+    }
+
     if (!needUser()) return fail("conta", "Conta inválida.");
+
+    // Transforma a conta em criador (ou atualiza os benefícios)
+    if (action === "creator_set") {
+      const code = String(body.code ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if (!/^[A-Z0-9]{3,16}$/.test(code)) return fail("codigo", "O código precisa ter de 3 a 16 letras ou números, sem espaço.");
+      const clampInt = (v: unknown, min: number, max: number, def: number) => {
+        const n = Math.round(Number(v));
+        return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
+      };
+      const row = {
+        user_id: userId,
+        code,
+        active: body.active !== false,
+        referrer_seconds: clampInt(body.referrerHours, 0, 50, 5) * 3600,
+        referred_seconds: clampInt(body.referredHours, 0, 20, 2) * 3600,
+        discount_pct: clampInt(body.discountPct, 0, 50, 15),
+        commission_pct: clampInt(body.commissionPct, 0, 50, 20),
+      };
+      // O código não pode ser igual ao de outro criador nem ao código comum de alguém
+      const { data: clash } = await db.from("creators").select("user_id").eq("code", code).neq("user_id", userId).maybeSingle();
+      const { data: clash2 } = await db.from("profiles").select("id").eq("referral_code", code).neq("id", userId).maybeSingle();
+      if (clash || clash2) return fail("codigo_em_uso", "Esse código já está em uso. Escolha outro.");
+      const { error } = await db.from("creators").upsert(row, { onConflict: "user_id" });
+      if (error) throw error;
+      await db.from("admin_actions").insert({ user_id: userId, admin_email: adminEmail, action: "criador_definido", details: row, note: note || null });
+      await db.rpc("refresh_account", { p_user: userId });
+      return json({ ok: true });
+    }
+
+    if (action === "creator_off") {
+      const { error } = await db.from("creators").update({ active: false }).eq("user_id", userId);
+      if (error) throw error;
+      await db.from("admin_actions").insert({ user_id: userId, admin_email: adminEmail, action: "criador_desativado", note: note || null });
+      await db.rpc("refresh_account", { p_user: userId });
+      return json({ ok: true });
+    }
 
     if (action === "detail") return json(await detail(db, userId));
 
