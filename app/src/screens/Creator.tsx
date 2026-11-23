@@ -66,10 +66,16 @@ export function Creator() {
 
   async function download(kind: PromoKind) {
     if (!d) return;
-    const path = await save({ defaultPath: `clipei-cut-${PROMO_INFO[kind].file}-${d.code}.png`, filters: [{ name: "Imagem PNG", extensions: ["png"] }] });
+    setMsg(null);
+    let path: string | null = null;
+    try {
+      path = await save({ defaultPath: `clipei-cut-${PROMO_INFO[kind].file}-${d.code}.png`, filters: [{ name: "Imagem PNG", extensions: ["png"] }] });
+    } catch (e) {
+      setMsg({ ok: false, text: `Não consegui abrir a janela para salvar: ${e instanceof Error ? e.message : String(e)}` });
+      return;
+    }
     if (!path) return;
     setBusy(kind);
-    setMsg(null);
     try {
       await saveBytes(path, await promoPng(kind, d.code, d.discountPct));
       setMsg({ ok: true, text: `${PROMO_INFO[kind].label} salvo.`, path });
@@ -82,11 +88,17 @@ export function Creator() {
 
   async function makeVideo() {
     if (!d) return;
-    const out = await save({ defaultPath: `clipei-cut-loop-${d.code}.webm`, filters: [{ name: "Vídeo WebM (transparente)", extensions: ["webm"] }] });
+    setMsg(null);
+    let out: string | null = null;
+    try {
+      out = await save({ defaultPath: `clipei-cut-loop-${d.code}.webm`, filters: [{ name: "Vídeo WebM (transparente)", extensions: ["webm"] }] });
+    } catch (e) {
+      setMsg({ ok: false, text: `Não consegui abrir a janela para salvar: ${e instanceof Error ? e.message : String(e)}` });
+      return;
+    }
     if (!out) return;
     setBusy("video");
     setVideoPct(0);
-    setMsg(null);
     try {
       const wdir = await workDir("promo");
       const card = await join(wdir, "card.png");
