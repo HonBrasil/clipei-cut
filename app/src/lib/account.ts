@@ -8,7 +8,7 @@ export type PlanId = "free" | "criador" | "pro" | "studio";
 export type Account = {
   plan: PlanId;
   planPeriod: "mensal" | "anual" | null;
-  planMethod: "recorrente" | "avulso" | null;
+  planMethod: "recorrente" | "avulso" | "grupo" | null;
   planStatus: "active" | "cancelled" | "expired";
   planExpiresAt: string | null;
   creditsSeconds: number; // horas do plano no mês atual

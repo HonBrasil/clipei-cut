@@ -2,11 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "../components/Icon";
 import { brl, fetchAccount, HOUR_PACKS, PLAN_INFO, startCheckout, type Account, type PlanId } from "../lib/account";
 import { fmtHours } from "../lib/format";
+import { GROUP_PRICES, GROUP_SIZES, type GroupPlan } from "../lib/groups";
 
 type Period = "mensal" | "anual";
 
-export function Plans({ account, onAccount }: { account: Account | null; onAccount: (a: Account | null) => void }) {
+export function Plans({ account, onAccount, onGroup }: { account: Account | null; onAccount: (a: Account | null) => void; onGroup: () => void }) {
   const [period, setPeriod] = useState<Period>("mensal");
+  const [kind, setKind] = useState<"individual" | "grupo">("individual");
+  const [gPlan, setGPlan] = useState<GroupPlan>("pro");
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ kind: "ok" | "error" | "wait"; text: string } | null>(null);
   const before = useRef<string>("");
@@ -85,6 +88,100 @@ export function Plans({ account, onAccount }: { account: Account | null; onAccou
 
       {msg && <div className={msg.kind === "error" ? "error" : "note"}>{msg.text}</div>}
 
+      <div className="planKinds" role="tablist" aria-label="Tipo de plano">
+        <button role="tab" aria-selected={kind === "individual"} className={kind === "individual" ? "on" : ""} onClick={() => setKind("individual")}>
+          <Icon name="user" size={16} /> Individual
+        </button>
+        <button role="tab" aria-selected={kind === "grupo"} className={kind === "grupo" ? "on" : ""} onClick={() => setKind("grupo")}>
+          <Icon name="users" size={16} /> Em grupo <span className="badge ok" style={{ marginLeft: 4, padding: "2px 6px", fontSize: 11 }}>até −20%</span>
+        </button>
+      </div>
+
+      {kind === "grupo" && (
+        <>
+          <div className="groupIntro">
+            <span className="small" style={{ color: "var(--soft)" }}>
+              Uma pessoa paga e convida os amigos. <b style={{ color: "var(--text)" }}>Cada um usa a própria conta, com as próprias horas</b> — ninguém gasta as horas do outro.
+            </span>
+            <div className="seg" role="radiogroup" aria-label="Plano do grupo">
+              {(["criador", "pro"] as GroupPlan[]).map((g) => (
+                <button key={g} role="radio" aria-checked={gPlan === g} className={gPlan === g ? "on" : ""} onClick={() => setGPlan(g)}>
+                  {PLAN_INFO[g].name} · {PLAN_INFO[g].hours} h cada
+                </button>
+              ))}
+            </div>
+          </div>
+          <section className="planGrid" aria-label="Planos em grupo">
+            {GROUP_SIZES.map((g) => {
+              const price = GROUP_PRICES[gPlan][g.id][period];
+              const full = (period === "mensal" ? PLAN_INFO[gPlan].monthly : PLAN_INFO[gPlan].yearly) * g.people;
+              const product = `${gPlan}_${g.id}_${period}`;
+              return (
+                <article key={g.id} className={`planCard ${g.id === "trio" ? "featured" : ""}`}>
+                  {g.id === "trio" && <span className="ribbon">Melhor custo</span>}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                    <h2 className="sub" style={{ fontSize: 22 }}>
+                      {PLAN_INFO[gPlan].name} {g.label}
+                    </h2>
+                    <span className="people" aria-label={`${g.people} pessoas`}>
+                      {Array.from({ length: g.people }, (_, i) => (
+                        <Icon key={i} name="user" size={15} />
+                      ))}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="price">{brl(price)}</span>
+                    <span className="muted small"> /{period === "mensal" ? "mês" : "ano"}</span>
+                  </div>
+                  <span className="small" style={{ color: "#4ade80", fontWeight: 700, minHeight: 18 }}>
+                    {brl(price / g.people)} por pessoa · economia de {brl(full - price)}
+                  </span>
+                  <ul className="perks">
+                    <li>
+                      <Icon name="check" size={15} color="#4ade80" width={3} /> {g.people} contas com plano {PLAN_INFO[gPlan].name}
+                    </li>
+                    <li>
+                      <Icon name="check" size={15} color="#4ade80" width={3} /> {PLAN_INFO[gPlan].hours} horas por mês para cada um
+                    </li>
+                    <li>
+                      <Icon name="check" size={15} color="#4ade80" width={3} /> {g.discount}% mais barato que {g.people} planos separados
+                    </li>
+                    <li>
+                      <Icon name="check" size={15} color="#4ade80" width={3} /> Convite por código, troca de membros quando precisar
+                    </li>
+                  </ul>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: "auto" }}>
+                    {period === "mensal" ? (
+                      <>
+                        <button className="btn primary" disabled={!!busy} onClick={() => buy(product, "recorrente")}>
+                          {busy === `${product}:recorrente` ? "Abrindo…" : "Assinar no cartão"}
+                        </button>
+                        <button className="btn" disabled={!!busy} onClick={() => buy(product, "unico")}>
+                          {busy === `${product}:unico` ? "Abrindo…" : "Pagar 1 mês com Pix"}
+                        </button>
+                      </>
+                    ) : (
+                      <button className="btn primary" disabled={!!busy} onClick={() => buy(product, "unico")}>
+                        {busy === `${product}:unico` ? "Abrindo…" : "Assinar 12 meses"}
+                      </button>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </section>
+          <div className="toolbar">
+            <span className="small" style={{ color: "var(--soft)" }}>
+              Recebeu um código de grupo de um amigo? Entre no grupo dele e ganhe o plano sem pagar nada.
+            </span>
+            <button className="btn" onClick={onGroup}>
+              <Icon name="users" size={16} /> Entrar num grupo
+            </button>
+          </div>
+        </>
+      )}
+
+      {kind === "individual" && (
       <section className="planGrid" aria-label="Planos">
         {plans.map((id) => {
           const p = PLAN_INFO[id];
@@ -135,6 +232,7 @@ export function Plans({ account, onAccount }: { account: Account | null; onAccou
           );
         })}
       </section>
+      )}
 
       <section className="card" aria-labelledby="avulsas" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div>

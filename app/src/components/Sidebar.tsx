@@ -5,7 +5,7 @@ import { fmtHours } from "../lib/format";
 import { PLAN_INFO, type Account } from "../lib/account";
 import { openSupport } from "../lib/support";
 
-export type Screen = "home" | "library" | "analysis" | "clips" | "captions" | "brand" | "referral" | "exports" | "settings" | "plans" | "admin";
+export type Screen = "home" | "library" | "analysis" | "clips" | "captions" | "brand" | "referral" | "group" | "exports" | "settings" | "plans" | "admin";
 
 export function Sidebar(props: {
   screen: Screen;
@@ -39,6 +39,7 @@ export function Sidebar(props: {
         [
           ["captions", "text", "Modelos de legenda"],
           ["brand", "brand", "Kit da marca"],
+          ["group", "users", "Meu grupo"],
           ["exports", "folder", "Pasta de exportação"],
           ["settings", "gear", "Configurações"],
         ] as Array<[Screen, string, string]>

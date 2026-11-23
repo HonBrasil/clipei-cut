@@ -27,7 +27,12 @@ Deno.serve(async (req) => {
     if (method === "recorrente") {
       const db = admin();
       const { data: prof } = await db.from("profiles").select("plan, plan_status, plan_method, mp_preapproval_id").eq("id", user.id).single();
-      if (prof?.mp_preapproval_id && prof.plan_status === "active" && prof.plan === product.id.split("_")[0]) {
+      // Mesmo plano e mesmo tamanho de grupo = já é assinante (trocar de Pro para Pro Trio é permitido)
+      const { data: grp } = await db.from("groups").select("size").eq("owner_id", user.id).maybeSingle();
+      const SIZE_NAME: Record<number, string> = { 2: "duo", 3: "trio", 4: "squad" };
+      const current = prof?.plan_method === "recorrente" ? `${prof.plan}${grp ? `_${SIZE_NAME[grp.size]}` : ""}` : "";
+      const wanted = product.id.replace(/_mensal$/, "");
+      if (prof?.mp_preapproval_id && prof.plan_status === "active" && current === wanted) {
         return fail("ja_assinante", "Você já tem essa assinatura ativa.");
       }
       const sub = await mp<{ init_point: string }>("/preapproval", {

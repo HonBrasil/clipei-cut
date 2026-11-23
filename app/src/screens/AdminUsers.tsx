@@ -332,7 +332,9 @@ export function UserDrawer({ userId, onClose, onChanged }: { userId: string; onC
                   <b>
                     {p.plan === "free"
                       ? "—"
-                      : p.hasSubscription
+                      : p.planMethod === "grupo"
+                        ? "Membro de um grupo (o dono paga)"
+                        : p.hasSubscription
                         ? `Cartão recorrente${p.planStatus === "cancelled" ? " (cancelada)" : ""}`
                         : `Avulso · ${p.planPeriod ?? "—"}`}
                   </b>

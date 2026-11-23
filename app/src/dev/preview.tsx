@@ -75,7 +75,7 @@ createRoot(document.getElementById("root")!).render(
         {s === "captions" && <Captions />}
         {s === "exports" && <Exports />}
         {s === "settings" && <Config email="voce@clipei.com.br" account={acc} online onLogout={() => {}} onOpenExports={() => {}} onAccount={() => {}} onPlans={() => {}} />}
-        {s === "plans" && <Plans account={{ ...acc, plan: "free", allowanceSeconds: 3600, totalSeconds: 2280, extraSeconds: 0, hasSubscription: false }} onAccount={() => {}} />}
+        {s === "plans" && <Plans account={{ ...acc, plan: "free", allowanceSeconds: 3600, totalSeconds: 2280, extraSeconds: 0, hasSubscription: false }} onAccount={() => {}} onGroup={() => {}} />}
       </main>
       {new URLSearchParams(location.search).has("tour") && <Tour startAt={Number(new URLSearchParams(location.search).get("tour"))} onFinish={() => {}} />}
     </div>

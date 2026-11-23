@@ -7,6 +7,7 @@ import { TermsGate } from "./components/TermsGate";
 import { PENDING_TERMS_KEY } from "./screens/Login";
 import { applyReferral, PENDING_REFERRAL_KEY } from "./lib/referral";
 import { Referral } from "./screens/Referral";
+import { Group } from "./screens/Group";
 import { Plans } from "./screens/Plans";
 import { Admin } from "./screens/Admin";
 import type { Project } from "./lib/types";
@@ -191,7 +192,8 @@ export function App() {
           />
         )}
         {screen === "admin" && <Admin />}
-        {screen === "plans" && <Plans account={account} onAccount={setAccount} />}
+        {screen === "plans" && <Plans account={account} onAccount={setAccount} onGroup={() => setScreen("group")} />}
+        {screen === "group" && <Group onPlans={() => setScreen("plans")} onChanged={refreshCredits} />}
         {screen === "library" && (
           <Library
             key={libKey}

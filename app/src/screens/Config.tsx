@@ -132,7 +132,7 @@ export function Config(props: {
                 {account?.plan !== "free" && account?.planExpiresAt && (
                   <>
                     {" "}
-                    · {account.planStatus === "cancelled" ? "termina" : account.planMethod === "recorrente" ? "renova" : "vale até"} em{" "}
+                    · {account.planMethod === "grupo" ? "plano em grupo · " : ""}{account.planStatus === "cancelled" ? "termina" : account.planMethod === "recorrente" ? "renova" : "vale até"} em{" "}
                     {new Date(account.planExpiresAt).toLocaleDateString("pt-BR")}
                   </>
                 )}
