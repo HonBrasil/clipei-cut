@@ -419,3 +419,15 @@ select.input { padding-right: 10px; }
 .fontSample { line-height: 1.1; color: #fff; white-space: nowrap; overflow: hidden; max-width: 100%; }
 .fontName { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .fontOpt.on .fontName { color: #ffd5d8; }
+
+/* Indique e ganhe */
+.navGift .label { color: #ffd27a; }
+.refHero { display: flex; flex-wrap: wrap; gap: 24px; align-items: center; justify-content: space-between; background: linear-gradient(135deg, #1f1630 0%, #15151b 60%); border-color: #3a2c55; }
+.refHeroText { flex: 1 1 320px; display: flex; flex-direction: column; gap: 8px; }
+.refGold { color: #ffd27a; white-space: nowrap; }
+.refCodeBox { flex: 0 1 380px; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px; border-radius: 16px; background: #0f0f14; border: 1px dashed #5a4614; }
+.refCode { font-family: "Space Grotesk", monospace; font-size: 30px; font-weight: 800; letter-spacing: 0.06em; color: #fff; user-select: all; }
+.refSteps { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; counter-reset: step; }
+.refSteps li { counter-increment: step; display: flex; flex-direction: column; gap: 4px; padding: 14px 14px 14px 52px; border-radius: 12px; background: #121218; position: relative; font-size: 14px; }
+.refSteps li::before { content: counter(step); position: absolute; left: 14px; top: 14px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--red-tint); color: #fff; font-weight: 800; font-size: 13px; }
+.refSteps li span { color: var(--soft); font-size: 13px; }

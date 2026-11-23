@@ -89,5 +89,11 @@ async function apply(userId: string, paymentId: string, product: string, amount:
   });
   if (error) throw error;
   console.log("Compra", data ? "aplicada" : "já aplicada antes", paymentId, product, userId);
+  if (data) {
+    // Indique e ganhe: no primeiro pagamento de um amigo indicado, os dois ganham horas
+    const { data: rewarded, error: e2 } = await admin().rpc("grant_referral_reward", { p_user: userId, p_payment_id: paymentId });
+    if (e2) console.error("grant_referral_reward", e2);
+    else if (rewarded) console.log("Indicação recompensada", userId);
+  }
   return Boolean(data);
 }

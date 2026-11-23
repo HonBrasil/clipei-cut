@@ -19,6 +19,7 @@ import { Home } from "../screens/Home";
 import { Tour } from "../components/Tour";
 import { Clips } from "../screens/Clips";
 import { Brand } from "../screens/Brand";
+import { Referral } from "../screens/Referral";
 import type { Project } from "../lib/types";
 
 const W = (word: string, start: number, end: number) => ({ word, start, end });
@@ -70,6 +71,7 @@ createRoot(document.getElementById("root")!).render(
         {s === "home" && <Home online credits={acc.totalSeconds} paid trialBlocked={false} onPlans={() => {}} onStart={() => {}} />}
         {s === "clips" && <Clips project={DEMO} paid onChange={() => {}} onBack={() => {}} onPlans={() => {}} />}
         {s === "brand" && <Brand paid onPlans={() => {}} />}
+        {s === "referral" && <Referral onPlans={() => {}} />}
         {s === "captions" && <Captions />}
         {s === "exports" && <Exports />}
         {s === "settings" && <Config email="voce@clipei.com.br" account={acc} online onLogout={() => {}} onOpenExports={() => {}} onAccount={() => {}} onPlans={() => {}} />}

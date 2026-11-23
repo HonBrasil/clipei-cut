@@ -5,7 +5,7 @@ import { fmtHours } from "../lib/format";
 import { PLAN_INFO, type Account } from "../lib/account";
 import { openSupport } from "../lib/support";
 
-export type Screen = "home" | "library" | "analysis" | "clips" | "captions" | "brand" | "exports" | "settings" | "plans" | "admin";
+export type Screen = "home" | "library" | "analysis" | "clips" | "captions" | "brand" | "referral" | "exports" | "settings" | "plans" | "admin";
 
 export function Sidebar(props: {
   screen: Screen;
@@ -53,6 +53,9 @@ export function Sidebar(props: {
           <Icon name="grid" color="#b9a3ff" /> <span className="label">Painel admin</span>
         </button>
       )}
+      <button className={`nav-item navGift ${screen === "referral" ? "active" : ""}`} onClick={() => onNavigate("referral")} aria-current={screen === "referral" ? "page" : undefined}>
+        <Icon name="gift" color="#ffd27a" /> <span className="label">Indique e ganhe</span>
+      </button>
       <button data-tour="nav-support" className="nav-item" onClick={() => openSupport()} title="Falar com o suporte no WhatsApp">
         <Icon name="chat" color="#4ade80" /> <span className="label">Suporte (WhatsApp)</span>
       </button>

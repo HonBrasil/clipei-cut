@@ -5,6 +5,8 @@ import { acceptTerms, claimTrial, fetchAccount, type Account, type TrialStatus }
 import { TERMS_VERSION } from "./lib/legal";
 import { TermsGate } from "./components/TermsGate";
 import { PENDING_TERMS_KEY } from "./screens/Login";
+import { applyReferral, PENDING_REFERRAL_KEY } from "./lib/referral";
+import { Referral } from "./screens/Referral";
 import { Plans } from "./screens/Plans";
 import { Admin } from "./screens/Admin";
 import type { Project } from "./lib/types";
@@ -97,6 +99,12 @@ export function App() {
       if (!alive) return;
       setTrial(status);
       refreshCredits();
+      // Código de indicação digitado no cadastro
+      const pendingRef = localStorage.getItem(PENDING_REFERRAL_KEY);
+      if (pendingRef) {
+        localStorage.removeItem(PENDING_REFERRAL_KEY);
+        applyReferral(pendingRef).catch((e) => console.warn("Indicação", e));
+      }
     })();
     return () => {
       alive = false;
@@ -168,6 +176,7 @@ export function App() {
         )}
         {screen === "captions" && <Captions />}
         {screen === "brand" && <Brand paid={paid} onPlans={() => setScreen("plans")} />}
+        {screen === "referral" && <Referral onPlans={() => setScreen("plans")} />}
         {screen === "exports" && <Exports />}
         {screen === "settings" && (
           <Config

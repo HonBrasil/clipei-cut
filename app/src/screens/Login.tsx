@@ -7,6 +7,7 @@ import { LegalModal } from "../components/LegalModal";
 type Mode = "in" | "up" | "code" | "forgot" | "reset";
 
 export const PENDING_TERMS_KEY = "clipei-terms-aceitos";
+import { PENDING_REFERRAL_KEY } from "../lib/referral";
 
 // Os e-mails com código dependem de um serviço de e-mail próprio (SMTP) no Supabase.
 // Enquanto ele não estiver configurado, "Esqueci minha senha" leva ao suporte.
@@ -18,6 +19,7 @@ export function Login({ online }: { online: boolean }) {
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [accept, setAccept] = useState(false);
+  const [refCode, setRefCode] = useState("");
   const [legal, setLegal] = useState<null | "termos" | "privacidade">(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "error" | "ok"; text: string } | null>(null);
@@ -60,6 +62,7 @@ export function Login({ online }: { online: boolean }) {
         const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { terms_version: TERMS_VERSION } } });
         if (error) throw error;
         localStorage.setItem(PENDING_TERMS_KEY, TERMS_VERSION);
+        if (refCode.trim()) localStorage.setItem(PENDING_REFERRAL_KEY, refCode.trim().toUpperCase());
         if (!data.session) go("code", `Enviamos um código de 6 dígitos para ${email}. Digite abaixo para ativar sua conta.`);
       });
     if (mode === "code")
@@ -163,6 +166,20 @@ export function Login({ online }: { online: boolean }) {
           </button>
         )}
 
+        {mode === "up" && (
+          <div className="field">
+            <label htmlFor="ref">Código de indicação (opcional)</label>
+            <input
+              id="ref"
+              className="input"
+              placeholder="Ex.: JOAO-7K2Q"
+              value={refCode}
+              maxLength={20}
+              autoCapitalize="characters"
+              onChange={(e) => setRefCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))}
+            />
+          </div>
+        )}
         {mode === "up" && (
           <label className="acceptRow">
             <input type="checkbox" checked={accept} onChange={(e) => setAccept(e.target.checked)} />
