@@ -21,6 +21,7 @@ export type Group =
   | { role: "none" }
   | {
       role: "owner" | "member";
+      status: "pending" | "active"; // pending = criado, aguardando o dono pagar
       plan: GroupPlan;
       size: number;
       period: "mensal" | "anual";
@@ -49,12 +50,29 @@ const JOIN_MSG: Record<string, string> = {
   nao_autenticado: "Faça login novamente.",
 };
 
-/** Entra num grupo. Devolve "tem_plano" quando a pessoa já tem plano próprio (precisa confirmar). */
-export async function joinGroup(code: string, force = false): Promise<"ok" | "tem_plano"> {
+/** Cria o grupo antes de pagar (ou muda plano/tamanho de um grupo ainda não pago). */
+export async function createGroup(plan: GroupPlan, people: number): Promise<void> {
+  const { data, error } = await supabase.rpc("create_group", { p_plan: plan, p_size: people });
+  if (error) throw error;
+  const msg: Record<string, string> = {
+    ja_tem: "Você já tem um grupo ativo.",
+    ja_em_grupo: "Você está no grupo de outra pessoa. Saia dele para criar o seu.",
+    membros_demais: "Já entrou mais gente do que esse tamanho comporta. Remova alguém ou escolha um grupo maior.",
+  };
+  if (data !== "ok") throw new Error(msg[String(data)] ?? "Não foi possível criar o grupo.");
+}
+
+export async function deletePendingGroup(): Promise<void> {
+  const { error } = await supabase.rpc("delete_pending_group");
+  if (error) throw error;
+}
+
+/** Entra num grupo. "tem_plano" = a pessoa já tem plano próprio (precisa confirmar); "ok_aguardando" = o dono ainda não pagou. */
+export async function joinGroup(code: string, force = false): Promise<"ok" | "tem_plano" | "ok_aguardando"> {
   const { data, error } = await supabase.rpc("join_group", { p_code: code.trim().toUpperCase(), p_force: force });
   if (error) throw error;
   const r = String(data);
-  if (r === "ok" || r === "tem_plano") return r;
+  if (r === "ok" || r === "tem_plano" || r === "ok_aguardando") return r;
   throw new Error(JOIN_MSG[r] ?? "Não foi possível entrar no grupo.");
 }
 

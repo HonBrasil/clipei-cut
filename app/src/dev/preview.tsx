@@ -21,6 +21,7 @@ import { Clips } from "../screens/Clips";
 import { Brand } from "../screens/Brand";
 import { Referral } from "../screens/Referral";
 import { Creator } from "../screens/Creator";
+import { Group } from "../screens/Group";
 import type { Project } from "../lib/types";
 
 const W = (word: string, start: number, end: number) => ({ word, start, end });
@@ -74,6 +75,7 @@ createRoot(document.getElementById("root")!).render(
         {s === "brand" && <Brand paid onPlans={() => {}} />}
         {s === "referral" && <Referral onPlans={() => {}} />}
         {(s as string) === "creator" && <Creator />}
+        {(s as string) === "group" && <Group onPlans={() => {}} onChanged={() => {}} />}
         {s === "captions" && <Captions />}
         {s === "exports" && <Exports />}
         {s === "settings" && <Config email="voce@clipei.com.br" account={acc} online onLogout={() => {}} onOpenExports={() => {}} onAccount={() => {}} onPlans={() => {}} />}

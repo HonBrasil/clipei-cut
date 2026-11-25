@@ -1,8 +1,22 @@
 import { useEffect, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Icon } from "../components/Icon";
-import { PLAN_INFO } from "../lib/account";
-import { fetchGroup, groupInviteText, joinGroup, leaveGroup, newInvite, removeMember, sizeName, type Group as G } from "../lib/groups";
+import { brl, PLAN_INFO, startCheckout } from "../lib/account";
+import {
+  createGroup,
+  deletePendingGroup,
+  fetchGroup,
+  GROUP_PRICES,
+  GROUP_SIZES,
+  groupInviteText,
+  joinGroup,
+  leaveGroup,
+  newInvite,
+  removeMember,
+  sizeName,
+  type Group as G,
+  type GroupPlan,
+} from "../lib/groups";
 
 const date = (s: string | null) => (s ? new Date(s).toLocaleDateString("pt-BR") : "—");
 
@@ -15,6 +29,10 @@ export function Group({ onPlans, onChanged }: { onPlans: () => void; onChanged: 
   const [askForce, setAskForce] = useState(false);
   const [confirm, setConfirm] = useState<{ label: string; run: () => Promise<void> } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [newPlan, setNewPlan] = useState<GroupPlan>("pro");
+  const [newSize, setNewSize] = useState(3);
+  const [period, setPeriod] = useState<"mensal" | "anual">("mensal");
+  const [waitingPay, setWaitingPay] = useState(false);
 
   const load = () =>
     fetchGroup()
@@ -26,6 +44,38 @@ export function Group({ onPlans, onChanged }: { onPlans: () => void; onChanged: 
   useEffect(() => {
     load();
   }, []);
+
+  // Depois de abrir o pagamento, confere sozinho se o grupo já foi ativado
+  useEffect(() => {
+    if (!waitingPay) return;
+    let n = 0;
+    const id = setInterval(async () => {
+      n++;
+      const x = await fetchGroup().catch(() => null);
+      if (x && x.role !== "none" && x.status === "active") {
+        setG(x);
+        setWaitingPay(false);
+        setMsg({ ok: true, text: "Pagamento aprovado! O grupo está ativo e todos os membros já receberam o plano. 🎉" });
+        onChanged();
+      }
+      if (n > 60) setWaitingPay(false);
+    }, 8000);
+    return () => clearInterval(id);
+  }, [waitingPay, onChanged]);
+
+  async function pay(product: string, method: "recorrente" | "unico") {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await startCheckout(product, method);
+      setWaitingPay(true);
+      setMsg({ ok: true, text: "Abrimos o pagamento no navegador. Assim que o Mercado Pago aprovar, o grupo é ativado aqui sozinho." });
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function act(fn: () => Promise<void>, okText: string) {
     setBusy(true);
@@ -53,7 +103,10 @@ export function Group({ onPlans, onChanged }: { onPlans: () => void; onChanged: 
         return;
       }
       setAskForce(false);
-      setMsg({ ok: true, text: "Você entrou no grupo! O plano já está liberado na sua conta." });
+      setMsg({
+        ok: true,
+        text: r === "ok_aguardando" ? "Você entrou no grupo! Assim que o dono ativar o pagamento, o plano é liberado na sua conta automaticamente." : "Você entrou no grupo! O plano já está liberado na sua conta.",
+      });
       setCode("");
       await load();
       onChanged();
@@ -118,13 +171,37 @@ export function Group({ onPlans, onChanged }: { onPlans: () => void; onChanged: 
               </div>
             )}
           </section>
-          <section className="card groupCta" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <h2 className="sub" style={{ fontSize: 18 }}>
-              Montar o seu grupo
+          <section className="card groupCta" style={{ display: "flex", flexDirection: "column", gap: 12 }} aria-labelledby="g-create">
+            <h2 id="g-create" className="sub" style={{ fontSize: 18 }}>
+              Criar meu grupo
             </h2>
-            <span className="muted small">Assine um plano Duo, Trio ou Squad, chame os amigos e economize até 20% — cada um com a própria conta.</span>
-            <button className="btn primary" style={{ alignSelf: "flex-start" }} onClick={onPlans}>
-              <Icon name="users" size={16} /> Ver planos em grupo
+            <span className="muted small">Crie agora, chame os amigos com o código e pague só quando quiser ativar. Cada um usa a própria conta e as próprias horas.</span>
+            <div className="seg" role="radiogroup" aria-label="Plano do grupo">
+              {(["criador", "pro"] as GroupPlan[]).map((p) => (
+                <button key={p} role="radio" aria-checked={newPlan === p} className={newPlan === p ? "on" : ""} onClick={() => setNewPlan(p)}>
+                  {PLAN_INFO[p].name} · {PLAN_INFO[p].hours} h cada
+                </button>
+              ))}
+            </div>
+            <div className="sizePick" role="radiogroup" aria-label="Tamanho do grupo">
+              {GROUP_SIZES.map((s) => (
+                <button key={s.id} role="radio" aria-checked={newSize === s.people} className={`sizeOpt ${newSize === s.people ? "on" : ""}`} onClick={() => setNewSize(s.people)}>
+                  <b>{s.label}</b>
+                  <span>{s.people} pessoas</span>
+                  <span className="sizePrice">{brl(GROUP_PRICES[newPlan][s.id].mensal)}/mês</span>
+                </button>
+              ))}
+            </div>
+            <button
+              className="btn primary"
+              style={{ alignSelf: "flex-start" }}
+              disabled={busy}
+              onClick={() => act(() => createGroup(newPlan, newSize), "Grupo criado! Envie o código para os amigos e ative quando quiser.")}
+            >
+              <Icon name="users" size={16} /> Criar grupo
+            </button>
+            <button className="linkBtn small" style={{ alignSelf: "flex-start" }} onClick={onPlans}>
+              Comparar com os planos individuais
             </button>
           </section>
         </div>
@@ -139,7 +216,8 @@ export function Group({ onPlans, onChanged }: { onPlans: () => void; onChanged: 
                 {PLAN_INFO[g.plan].name} {sizeName(g.size)}
               </h2>
               <span className="small" style={{ color: "var(--soft)" }}>
-                {PLAN_INFO[g.plan].hours} h por mês para cada pessoa · {g.renews ? "renova" : "vale até"} em {date(g.expiresAt)}
+                {PLAN_INFO[g.plan].hours} h por mês para cada pessoa ·{" "}
+                {g.status === "pending" ? <b style={{ color: "#ffd27a" }}>aguardando pagamento</b> : `${g.renews ? "renova" : "vale até"} em ${date(g.expiresAt)}`}
               </span>
             </div>
             <div className="seats" aria-label={`${g.members.length} de ${g.size} vagas ocupadas`}>
@@ -153,6 +231,90 @@ export function Group({ onPlans, onChanged }: { onPlans: () => void; onChanged: 
               </span>
             </div>
           </section>
+
+          {g.status === "pending" && g.role === "owner" && (() => {
+            const sz = GROUP_SIZES.find((x) => x.people === g.size)!;
+            const price = GROUP_PRICES[g.plan][sz.id][period];
+            const product = `${g.plan}_${sz.id}_${period}`;
+            return (
+              <section className="card activateCard" aria-labelledby="g-pay">
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <h2 id="g-pay" className="sub" style={{ fontSize: 18 }}>
+                    Ativar o grupo
+                  </h2>
+                  <span className="muted small">
+                    Ao pagar, você e todos que já entraram recebem o plano {PLAN_INFO[g.plan].name} na hora. {g.members.length} de {g.size} vagas ocupadas.
+                  </span>
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+                  <div className="seg" role="radiogroup" aria-label="Período">
+                    <button role="radio" aria-checked={period === "mensal"} className={period === "mensal" ? "on" : ""} onClick={() => setPeriod("mensal")}>
+                      Mensal
+                    </button>
+                    <button role="radio" aria-checked={period === "anual"} className={period === "anual" ? "on" : ""} onClick={() => setPeriod("anual")}>
+                      Anual
+                    </button>
+                  </div>
+                  <span>
+                    <span className="price" style={{ fontSize: 26 }}>{brl(price)}</span>
+                    <span className="muted small"> /{period === "mensal" ? "mês" : "ano"} · {brl(price / g.size)} por pessoa</span>
+                  </span>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {period === "mensal" ? (
+                    <>
+                      <button className="btn primary" disabled={busy} onClick={() => pay(product, "recorrente")}>
+                        Ativar no cartão
+                      </button>
+                      <button className="btn" disabled={busy} onClick={() => pay(product, "unico")}>
+                        Pagar 1 mês com Pix
+                      </button>
+                    </>
+                  ) : (
+                    <button className="btn primary" disabled={busy} onClick={() => pay(product, "unico")}>
+                      Pagar 12 meses
+                    </button>
+                  )}
+                  {waitingPay && (
+                    <button className="btn" onClick={() => load()}>
+                      Já paguei, atualizar
+                    </button>
+                  )}
+                </div>
+                <details className="groupEdit">
+                  <summary className="small">Mudar plano ou tamanho / excluir grupo</summary>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                    {(["criador", "pro"] as GroupPlan[]).flatMap((p) =>
+                      GROUP_SIZES.map((x) => (
+                        <button
+                          key={`${p}-${x.id}`}
+                          className={`chip sm ${g.plan === p && g.size === x.people ? "on" : ""}`}
+                          disabled={busy || (g.plan === p && g.size === x.people)}
+                          onClick={() => act(() => createGroup(p, x.people), `Grupo alterado para ${PLAN_INFO[p].name} ${x.label}.`)}
+                        >
+                          {PLAN_INFO[p].name} {x.label}
+                        </button>
+                      )),
+                    )}
+                  </div>
+                  <button
+                    className="btn danger sm"
+                    style={{ marginTop: 10 }}
+                    disabled={busy}
+                    onClick={() => setConfirm({ label: "Excluir este grupo? Quem já entrou sai do grupo (ninguém foi cobrado ainda).", run: deletePendingGroup })}
+                  >
+                    Excluir grupo
+                  </button>
+                </details>
+              </section>
+            );
+          })()}
+
+          {g.status === "pending" && g.role === "member" && (
+            <div className="note small" style={{ display: "block" }}>
+              ⏳ O grupo de <b>{g.ownerEmail}</b> ainda não foi ativado. Assim que ele pagar, o plano {PLAN_INFO[g.plan].name} é liberado na sua conta automaticamente.
+            </div>
+          )}
 
           {g.role === "owner" && g.inviteCode && (
             <section className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }} aria-labelledby="g-inv">
@@ -197,7 +359,7 @@ export function Group({ onPlans, onChanged }: { onPlans: () => void; onChanged: 
               <h2 id="g-mem" className="sub" style={{ fontSize: 17 }}>
                 Membros
               </h2>
-              {g.role === "owner" && <span className="muted small">Trocas disponíveis nos próximos 30 dias: {g.swapsLeft}</span>}
+              {g.role === "owner" && g.status === "active" && <span className="muted small">Trocas disponíveis nos próximos 30 dias: {g.swapsLeft}</span>}
             </div>
             {g.members.map((m) => (
               <div key={m.id} className="memberRow">
@@ -217,7 +379,7 @@ export function Group({ onPlans, onChanged }: { onPlans: () => void; onChanged: 
                     title={g.swapsLeft === 0 ? "Limite de trocas atingido" : ""}
                     onClick={() =>
                       setConfirm({
-                        label: `Remover ${m.email} do grupo? A conta dele volta para o plano Grátis.`,
+                        label: g.status === "pending" ? `Remover ${m.email} do grupo?` : `Remover ${m.email} do grupo? A conta dele volta para o plano Grátis.`,
                         run: () => removeMember(m.id),
                       })
                     }
@@ -240,7 +402,12 @@ export function Group({ onPlans, onChanged }: { onPlans: () => void; onChanged: 
               className="btn"
               style={{ alignSelf: "flex-start", color: "var(--red-text)" }}
               disabled={busy}
-              onClick={() => setConfirm({ label: "Sair do grupo? Sua conta volta para o plano Grátis (suas horas avulsas continuam).", run: leaveGroup })}
+              onClick={() =>
+                setConfirm({
+                  label: g.status === "pending" ? "Sair do grupo?" : "Sair do grupo? Sua conta volta para o plano Grátis (suas horas avulsas continuam).",
+                  run: leaveGroup,
+                })
+              }
             >
               Sair do grupo
             </button>
