@@ -158,7 +158,7 @@ export function App() {
           account={account}
           onRenew={() =>
             fetchGroup()
-              .then((g) => setScreen(g.role === "owner" ? "group" : "plans"))
+              .then((g) => setScreen(g.role === "owner" && g.status === "active" ? "group" : "plans"))
               .catch(() => setScreen("plans"))
           }
         />

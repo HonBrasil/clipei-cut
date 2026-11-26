@@ -16,7 +16,7 @@ export function Plans({ account, onAccount, onGroup }: { account: Account | null
   const [ownsGroup, setOwnsGroup] = useState(false);
   useEffect(() => {
     fetchGroup()
-      .then((g) => setOwnsGroup(g.role === "owner"))
+      .then((g) => setOwnsGroup(g.role === "owner" && g.status === "active"))
       .catch(() => {});
   }, []);
   useEffect(() => {
