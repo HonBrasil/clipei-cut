@@ -1,4 +1,4 @@
-// Plano e saldo da conta, e as compras pelo Mercado Pago.
+// Plano e saldo da conta, e as compras pela InfinitePay.
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { invoke } from "@tauri-apps/api/core";
 import { supabase } from "./supabase";
@@ -8,7 +8,7 @@ export type PlanId = "free" | "criador" | "pro" | "studio";
 export type Account = {
   plan: PlanId;
   planPeriod: "mensal" | "anual" | null;
-  planMethod: "recorrente" | "avulso" | "grupo" | null;
+  planMethod: "recorrente" | "avulso" | "grupo" | "criador" | null;
   planStatus: "active" | "cancelled" | "expired";
   planExpiresAt: string | null;
   creditsSeconds: number; // horas do plano no mês atual
@@ -76,10 +76,10 @@ async function callFn(name: string, body: unknown): Promise<any> {
   return json;
 }
 
-/** Abre o pagamento do Mercado Pago no navegador. */
+/** Abre o link de pagamento da InfinitePay (Pix ou cartão) no navegador. */
 export async function startCheckout(product: string, method: "recorrente" | "unico"): Promise<void> {
   const { url } = await callFn("checkout", { product, method });
-  if (!url) throw new Error("O Mercado Pago não devolveu o link de pagamento.");
+  if (!url) throw new Error("Não recebemos o link de pagamento. Tente de novo.");
   await openUrl(url);
 }
 

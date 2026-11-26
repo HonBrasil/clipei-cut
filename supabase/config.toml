@@ -37,3 +37,6 @@ verify_jwt = true
 
 [functions.apply-referral]
 verify_jwt = true
+
+[functions.ip-webhook]
+verify_jwt = false

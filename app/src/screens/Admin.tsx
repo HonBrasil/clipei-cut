@@ -185,7 +185,7 @@ export function Admin() {
                 <span>Lucro estimado (líquido − IA)</span>
                 <b style={{ color: "var(--green)" }}>{brl(stats.usage.profitEstimate)}</b>
               </div>
-              <span className="muted" style={{ fontSize: 12 }}>Estimativas antes de impostos. Líquido calculado com a taxa de 4,99% do Mercado Pago.</span>
+              <span className="muted" style={{ fontSize: 12 }}>Estimativas antes de impostos. Líquido estimado com taxa média de cartão (Pix na InfinitePay não tem taxa).</span>
             </section>
           </div>
 

@@ -28,6 +28,8 @@ import { Tour } from "./components/Tour";
 import { Brand } from "./screens/Brand";
 import { WatchProvider } from "./lib/watch";
 import { WatchBanner } from "./components/WatchBanner";
+import { RenewBanner } from "./components/RenewBanner";
+import { fetchGroup } from "./lib/groups";
 import { useSettings } from "./lib/settings";
 
 export function App() {
@@ -152,6 +154,14 @@ export function App() {
       />
       <main className="main">
         {!online && <OfflineBanner />}
+        <RenewBanner
+          account={account}
+          onRenew={() =>
+            fetchGroup()
+              .then((g) => setScreen(g.role === "owner" ? "group" : "plans"))
+              .catch(() => setScreen("plans"))
+          }
+        />
         <WatchBanner
           onPlans={() => setScreen("plans")}
           onOpen={async (id) => {

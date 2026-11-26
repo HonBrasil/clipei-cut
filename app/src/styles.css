@@ -487,3 +487,6 @@ select.input { padding-right: 10px; }
 .sizeOpt.on { border-color: var(--red-text); background: var(--red-tint); }
 .activateCard { display: flex; flex-direction: column; gap: 14px; border-color: #5a4614; background: linear-gradient(135deg, #1d1810 0%, #15151b 60%); }
 .groupEdit summary { cursor: pointer; color: var(--soft); }
+
+/* Aviso de renovação (planos pré-pagos) */
+.renewBanner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-radius: 14px; background: #2a2210; border: 1px solid #5a4614; color: #ffe7a8; font-size: 14px; }

@@ -4,6 +4,7 @@ import { brl, fetchAccount, HOUR_PACKS, PLAN_INFO, startCheckout, type Account, 
 import { fmtHours } from "../lib/format";
 import { GROUP_PRICES, GROUP_SIZES, type GroupPlan } from "../lib/groups";
 import { fetchReferral } from "../lib/referral";
+import { fetchGroup } from "../lib/groups";
 
 type Period = "mensal" | "anual";
 
@@ -12,6 +13,12 @@ export function Plans({ account, onAccount, onGroup }: { account: Account | null
   const [kind, setKind] = useState<"individual" | "grupo">("individual");
   const [gPlan, setGPlan] = useState<GroupPlan>("pro");
   const [followerOff, setFollowerOff] = useState(0);
+  const [ownsGroup, setOwnsGroup] = useState(false);
+  useEffect(() => {
+    fetchGroup()
+      .then((g) => setOwnsGroup(g.role === "owner"))
+      .catch(() => {});
+  }, []);
   useEffect(() => {
     fetchReferral()
       .then((r) => setFollowerOff(r.followerDiscount ?? 0))
@@ -44,7 +51,7 @@ export function Plans({ account, onAccount, onGroup }: { account: Account | null
     setMsg(null);
     try {
       await startCheckout(product, method);
-      setMsg({ kind: "wait", text: "Abrimos o pagamento no seu navegador. Assim que o Mercado Pago aprovar, o plano é liberado aqui automaticamente." });
+      setMsg({ kind: "wait", text: "Abrimos o pagamento no seu navegador. Pague com Pix ou cartão. Assim que for aprovado, o plano é liberado aqui automaticamente." });
       watchForPayment();
     } catch (e) {
       setMsg({ kind: "error", text: e instanceof Error ? e.message : String(e) });
@@ -59,7 +66,7 @@ export function Plans({ account, onAccount, onGroup }: { account: Account | null
     <>
       <header style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", justifyContent: "space-between", gap: 16 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span className="eyebrow">Pagamento seguro pelo Mercado Pago · Pix ou cartão</span>
+          <span className="eyebrow">Pagamento seguro pela InfinitePay · Pix ou cartão</span>
           <h1 className="title">
             <span className="sl">//</span> Escolha seu <em>plano</em>
           </h1>
@@ -96,7 +103,7 @@ export function Plans({ account, onAccount, onGroup }: { account: Account | null
       {msg && <div className={msg.kind === "error" ? "error" : "note"}>{msg.text}</div>}
       {followerOff > 0 && (
         <div className="okMsg">
-          🎁 Você entrou com o cupom de um criador: <b>{followerOff}% OFF no primeiro pagamento</b> de qualquer plano. O desconto aparece na tela do Mercado Pago.
+          🎁 Você entrou com o cupom de um criador: <b>{followerOff}% OFF no primeiro pagamento</b> de qualquer plano. O desconto já vem aplicado na tela de pagamento.
         </div>
       )}
 
@@ -163,20 +170,12 @@ export function Plans({ account, onAccount, onGroup }: { account: Account | null
                     </li>
                   </ul>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: "auto" }}>
-                    {period === "mensal" ? (
-                      <>
-                        <button className="btn primary" disabled={!!busy} onClick={() => buy(product, "recorrente")}>
-                          {busy === `${product}:recorrente` ? "Abrindo…" : "Assinar no cartão"}
-                        </button>
-                        <button className="btn" disabled={!!busy} onClick={() => buy(product, "unico")}>
-                          {busy === `${product}:unico` ? "Abrindo…" : "Pagar 1 mês com Pix"}
-                        </button>
-                      </>
-                    ) : (
-                      <button className="btn primary" disabled={!!busy} onClick={() => buy(product, "unico")}>
-                        {busy === `${product}:unico` ? "Abrindo…" : "Assinar 12 meses"}
-                      </button>
-                    )}
+                    <button className="btn primary" disabled={!!busy} onClick={() => buy(product, "unico")}>
+                      {busy === `${product}:unico` ? "Abrindo…" : period === "mensal" ? "Assinar 1 mês" : "Assinar 12 meses"}
+                    </button>
+                    <span className="muted" style={{ fontSize: 12, textAlign: "center" }}>
+                      Pix ou cartão{period === "anual" ? " em até 12x" : ""}
+                    </span>
                   </div>
                 </article>
               );
@@ -221,23 +220,18 @@ export function Plans({ account, onAccount, onGroup }: { account: Account | null
                 ))}
               </ul>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: "auto" }}>
-                {period === "mensal" ? (
-                  <>
-                    <button className="btn primary" disabled={!!busy} onClick={() => buy(product, "recorrente")}>
-                      {busy === `${product}:recorrente` ? "Abrindo…" : current && account?.hasSubscription ? "Assinatura ativa" : "Assinar no cartão"}
-                    </button>
-                    <button className="btn" disabled={!!busy} onClick={() => buy(product, "unico")}>
-                      {busy === `${product}:unico` ? "Abrindo…" : "Pagar 1 mês com Pix"}
-                    </button>
-                    <span className="muted" style={{ fontSize: 12, textAlign: "center" }}>
-                      Cartão renova sozinho · Pix vale 30 dias
-                    </span>
-                  </>
-                ) : (
-                  <button className="btn primary" disabled={!!busy} onClick={() => buy(product, "unico")}>
-                    {busy === `${product}:unico` ? "Abrindo…" : "Assinar 12 meses"}
+                {ownsGroup ? (
+                  <button className="btn" onClick={onGroup} title="Comprar um plano individual encerraria o seu grupo">
+                    Você é dono de um grupo · renove em Meu grupo
                   </button>
+                ) : (
+                <button className="btn primary" disabled={!!busy} onClick={() => buy(product, "unico")}>
+                  {busy === `${product}:unico` ? "Abrindo…" : current ? (period === "mensal" ? "Renovar +1 mês" : "Renovar +12 meses") : period === "mensal" ? "Assinar 1 mês" : "Assinar 12 meses"}
+                </button>
                 )}
+                <span className="muted" style={{ fontSize: 12, textAlign: "center" }}>
+                  Pix ou cartão{period === "anual" ? " em até 12x" : ""} · {current ? "o tempo soma ao que você já tem" : period === "mensal" ? "vale 30 dias" : "vale 12 meses"}
+                </span>
               </div>
               {current && <span className="badge ai" style={{ alignSelf: "center" }}>Seu plano atual</span>}
             </article>
@@ -269,7 +263,7 @@ export function Plans({ account, onAccount, onGroup }: { account: Account | null
       </section>
 
       <span className="muted small">
-        Pagamentos processados pelo Mercado Pago. O Clipei Cut não vê nem guarda os dados do seu cartão. Você pode cancelar a renovação quando quiser em Configurações.
+        Pagamentos processados pela InfinitePay. O Clipei Cut não vê nem guarda os dados do seu cartão. Os planos são pré-pagos: nada é cobrado automaticamente — para continuar, é só renovar. Assinaturas antigas no cartão continuam e podem ser canceladas em Configurações.
       </span>
     </>
   );

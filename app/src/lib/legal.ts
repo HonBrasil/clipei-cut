@@ -1,6 +1,6 @@
 // Termos de uso e Política de privacidade do Clipei Cut.
 // Ao mudar o texto, troque a versão aqui e em supabase/functions/accept-terms.
-export const TERMS_VERSION = "2026-11-21";
+export const TERMS_VERSION = "2026-11-26";
 
 export type LegalDoc = { title: string; updated: string; sections: Array<{ h: string; p: string[] }> };
 
@@ -38,7 +38,8 @@ export const TERMS: LegalDoc = {
       h: "4. Planos, pagamentos e renovação",
       p: [
         "Os planos pagos dão direito a um número de horas de análise por mês, conforme descrito no aplicativo no momento da compra. As horas do plano não acumulam de um mês para o outro. Horas avulsas não vencem.",
-        "Os pagamentos são processados pelo Mercado Pago. Não temos acesso aos dados completos do seu cartão.",
+        "Os pagamentos são processados pela InfinitePay (CloudWalk). Assinaturas antigas no cartão continuam no Mercado Pago até serem canceladas. Não temos acesso aos dados completos do seu cartão.",
+        "Os planos são pré-pagos (mensal ou anual): não há cobrança automática. Para continuar com o plano, renove pelo app antes do vencimento; o novo período soma ao que já existe.",
         "Assinaturas mensais no cartão renovam automaticamente até serem canceladas. Você pode cancelar a renovação a qualquer momento em Configurações; o plano continua ativo até o fim do período já pago.",
         "Pagamentos únicos (Pix, plano anual ou horas avulsas) valem pelo período ou quantidade contratada e não renovam sozinhos.",
         "Os preços podem mudar. Mudanças não afetam períodos já pagos e serão avisadas com antecedência para assinaturas ativas.",
@@ -106,7 +107,7 @@ export const PRIVACY: LegalDoc = {
       h: "2. Dados que coletamos",
       p: [
         "Conta: e-mail, senha (guardada de forma criptografada) e nome de exibição.",
-        "Plano e uso: plano contratado, saldo e consumo de horas, datas de uso e registros de pagamento (valor, produto, data e identificador do pagamento). Os dados do cartão ficam com o Mercado Pago.",
+        "Plano e uso: plano contratado, saldo e consumo de horas, datas de uso e registros de pagamento (valor, produto, data e identificador do pagamento). Os dados do cartão ficam com a empresa de pagamento (InfinitePay ou, em assinaturas antigas, Mercado Pago).",
         "Segurança contra fraude: um código do seu computador, gerado a partir da identificação do Windows e embaralhado (não é possível recuperar a identificação original), e um código embaralhado do seu endereço de internet (IP).",
         "Áudio dos vídeos: apenas o áudio é enviado para transcrição e análise. O áudio não é guardado por nós depois do processamento.",
         "Não coletamos o seu vídeo: ele é processado no seu computador. Transcrições, projetos e clipes ficam salvos apenas no seu PC.",
@@ -124,7 +125,7 @@ export const PRIVACY: LegalDoc = {
     {
       h: "4. Com quem compartilhamos",
       p: [
-        "Supabase (banco de dados, login e servidores), Groq (transcrição do áudio), Anthropic (análise do texto e sugestões) e Mercado Pago (pagamentos).",
+        "Supabase (banco de dados, login e servidores), Groq (transcrição do áudio), Anthropic (análise do texto e sugestões), InfinitePay/CloudWalk (pagamentos) e Mercado Pago (assinaturas antigas no cartão).",
         "Alguns desses fornecedores ficam fora do Brasil (por exemplo, nos Estados Unidos). Nesses casos, a transferência é feita para a execução do contrato com você e com fornecedores que adotam medidas de segurança compatíveis com a LGPD.",
         "Não vendemos os seus dados. Podemos compartilhar informações quando exigido por lei ou ordem judicial.",
       ],

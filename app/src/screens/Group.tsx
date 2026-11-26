@@ -52,16 +52,17 @@ export function Group({ onPlans, onChanged }: { onPlans: () => void; onChanged: 
     const id = setInterval(async () => {
       n++;
       const x = await fetchGroup().catch(() => null);
-      if (x && x.role !== "none" && x.status === "active") {
+      const before = g && g.role !== "none" ? g : null;
+      if (x && x.role !== "none" && x.status === "active" && (!before || before.status === "pending" || x.expiresAt !== before.expiresAt)) {
         setG(x);
         setWaitingPay(false);
-        setMsg({ ok: true, text: "Pagamento aprovado! O grupo está ativo e todos os membros já receberam o plano. 🎉" });
+        setMsg({ ok: true, text: "Pagamento aprovado! O grupo está ativo e todos os membros já estão com o plano em dia. 🎉" });
         onChanged();
       }
       if (n > 60) setWaitingPay(false);
     }, 8000);
     return () => clearInterval(id);
-  }, [waitingPay, onChanged]);
+  }, [waitingPay, onChanged, g]);
 
   async function pay(product: string, method: "recorrente" | "unico") {
     setBusy(true);
@@ -69,7 +70,7 @@ export function Group({ onPlans, onChanged }: { onPlans: () => void; onChanged: 
     try {
       await startCheckout(product, method);
       setWaitingPay(true);
-      setMsg({ ok: true, text: "Abrimos o pagamento no navegador. Assim que o Mercado Pago aprovar, o grupo é ativado aqui sozinho." });
+      setMsg({ ok: true, text: "Abrimos o pagamento no navegador. Assim que o pagamento for aprovado, o grupo é ativado aqui sozinho." });
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -232,7 +233,7 @@ export function Group({ onPlans, onChanged }: { onPlans: () => void; onChanged: 
             </div>
           </section>
 
-          {g.status === "pending" && g.role === "owner" && (() => {
+          {g.role === "owner" && (g.status === "pending" || !g.renews) && (() => {
             const sz = GROUP_SIZES.find((x) => x.people === g.size)!;
             const price = GROUP_PRICES[g.plan][sz.id][period];
             const product = `${g.plan}_${sz.id}_${period}`;
@@ -240,10 +241,12 @@ export function Group({ onPlans, onChanged }: { onPlans: () => void; onChanged: 
               <section className="card activateCard" aria-labelledby="g-pay">
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   <h2 id="g-pay" className="sub" style={{ fontSize: 18 }}>
-                    Ativar o grupo
+                    {g.status === "pending" ? "Ativar o grupo" : "Renovar o grupo"}
                   </h2>
                   <span className="muted small">
-                    Ao pagar, você e todos que já entraram recebem o plano {PLAN_INFO[g.plan].name} na hora. {g.members.length} de {g.size} vagas ocupadas.
+                    {g.status === "pending"
+                      ? `Ao pagar, você e todos que já entraram recebem o plano ${PLAN_INFO[g.plan].name} na hora. ${g.members.length} de ${g.size} vagas ocupadas.`
+                      : `O grupo vale até ${date(g.expiresAt)}. Renove a qualquer momento: o tempo novo soma ao que já existe, para todos os membros.`}
                   </span>
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
@@ -261,26 +264,16 @@ export function Group({ onPlans, onChanged }: { onPlans: () => void; onChanged: 
                   </span>
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {period === "mensal" ? (
-                    <>
-                      <button className="btn primary" disabled={busy} onClick={() => pay(product, "recorrente")}>
-                        Ativar no cartão
-                      </button>
-                      <button className="btn" disabled={busy} onClick={() => pay(product, "unico")}>
-                        Pagar 1 mês com Pix
-                      </button>
-                    </>
-                  ) : (
-                    <button className="btn primary" disabled={busy} onClick={() => pay(product, "unico")}>
-                      Pagar 12 meses
-                    </button>
-                  )}
+                  <button className="btn primary" disabled={busy} onClick={() => pay(product, "unico")}>
+                    {g.status === "pending" ? (period === "mensal" ? "Ativar 1 mês" : "Ativar 12 meses") : period === "mensal" ? "Renovar +1 mês" : "Renovar +12 meses"} · Pix ou cartão
+                  </button>
                   {waitingPay && (
                     <button className="btn" onClick={() => load()}>
                       Já paguei, atualizar
                     </button>
                   )}
                 </div>
+                {g.status === "pending" && (
                 <details className="groupEdit">
                   <summary className="small">Mudar plano ou tamanho / excluir grupo</summary>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
@@ -306,6 +299,7 @@ export function Group({ onPlans, onChanged }: { onPlans: () => void; onChanged: 
                     Excluir grupo
                   </button>
                 </details>
+                )}
               </section>
             );
           })()}
