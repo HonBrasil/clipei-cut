@@ -10,6 +10,7 @@ import { EMOJIS, fromOut, planClip, zoomExpr as zoomExprOf, type EditOpts } from
 import { allModels, exportDirOf, FONTS, useSettings, type CaptionModel, type CaptionPos, type FileNaming } from "../lib/settings";
 import { findClips, generatePost, wordsForClip } from "../lib/ai";
 import { CaptionEditor } from "../components/CaptionEditor";
+import { TrimBar } from "../components/TrimBar";
 import { ClipPreview } from "../components/ClipPreview";
 import { openSupport } from "../lib/support";
 import { fmtTime, slugify } from "../lib/format";
@@ -94,18 +95,42 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
   }
 
   // ----- Ajuste de início e fim (planos pagos) -----
-  function setCut(clip: Clip, start: number, end: number) {
+  const [snapWords, setSnapWords] = useState(true);
+  const [playhead, setPlayhead] = useState<number | null>(null);
+  const [trimDraft, setTrimDraft] = useState<{ id: string; start: number; end: number } | null>(null);
+  const trimTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** Encaixa no começo (ou fim) de palavra mais próximo, sem nunca "voltar" para trás do movimento. */
+  function snap(t: number, edge: "start" | "end", from: number): number {
     const words = project.transcript?.words ?? [];
-    // Encaixa no começo/fim de palavra mais próximo
-    const s0 = words.length ? words.reduce((b, w) => (Math.abs(w.start - start) < Math.abs(b - start) ? w.start : b), words[0].start) : start;
-    const e0 = words.length ? words.reduce((b, w) => (Math.abs(w.end - end) < Math.abs(b - end) ? w.end : b), words[0].end) : end;
-    const ns = Math.max(0, s0 - 0.12);
-    const ne = Math.min(project.video.duration, e0 + 0.2);
+    if (!snapWords || !words.length) return t;
+    const pts = words.map((w) => (edge === "start" ? w.start - 0.12 : w.end + 0.2));
+    const near = pts.filter((x) => Math.abs(x - t) <= 0.6);
+    if (!near.length) return t; // no meio de um silêncio: usa o ponto exato
+    const best = near.reduce((b, x) => (Math.abs(x - t) < Math.abs(b - t) ? x : b));
+    // se o encaixe desfaria o movimento, usa o ponto pedido
+    if ((t < from && best >= from - 0.05) || (t > from && best <= from + 0.05)) return t;
+    return best;
+  }
+  function setCut(clip: Clip, start: number, end: number, edge: "start" | "end" | "both", now = false) {
+    let ns = edge === "end" ? clip.start : snap(start, "start", clip.start);
+    let ne = edge === "start" ? clip.end : snap(end, "end", clip.end);
+    if (edge === "both") {
+      ns = start;
+      ne = end;
+    }
+    ns = Math.max(0, ns);
+    ne = Math.min(project.video.duration, ne);
     if (ne - ns < 3 || ne - ns > 180) return;
-    onChange((p) => ({
-      ...p,
-      clips: (p.clips ?? []).map((c) => (c.id === clip.id ? { ...c, start: ns, end: ne, orig: c.orig ?? { start: c.start, end: c.end } } : c)),
-    }));
+    setTrimDraft({ id: clip.id, start: ns, end: ne });
+    const commit = () =>
+      onChange((p) => ({
+        ...p,
+        clips: (p.clips ?? []).map((c) => (c.id === clip.id ? { ...c, start: ns, end: ne, orig: c.orig ?? { start: c.start, end: c.end } } : c)),
+      }));
+    if (trimTimer.current) clearTimeout(trimTimer.current);
+    if (now) commit();
+    else trimTimer.current = setTimeout(commit, 220);
   }
   function sentence(edge: "start" | "end", dir: -1 | 1, t: number): number | null {
     const segs = project.transcript?.segments ?? [];
@@ -113,16 +138,17 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
     const cand = dir < 0 ? pts.filter((x) => x < t - 0.4).pop() : pts.find((x) => x > t + 0.4);
     return cand ?? null;
   }
-  function moveStart(c: Clip, how: "frase" | "fino", dir: -1 | 1) {
-    const t = how === "fino" ? c.start + dir * 0.5 : sentence("start", dir, c.start);
-    if (t != null) setCut(c, t, c.end);
+  function moveStart(c: Clip, step: number | "frase", dir: -1 | 1) {
+    const t = step === "frase" ? sentence("start", dir, c.start) : c.start + dir * step;
+    if (t != null) setCut(c, t, c.end, "start", true);
   }
-  function moveEnd(c: Clip, how: "frase" | "fino", dir: -1 | 1) {
-    const t = how === "fino" ? c.end + dir * 0.5 : sentence("end", dir, c.end);
-    if (t != null) setCut(c, c.start, t);
+  function moveEnd(c: Clip, step: number | "frase", dir: -1 | 1) {
+    const t = step === "frase" ? sentence("end", dir, c.end) : c.end + dir * step;
+    if (t != null) setCut(c, c.start, t, "end", true);
   }
   function resetCut(c: Clip) {
     if (!c.orig) return;
+    setTrimDraft(null);
     onChange((p) => ({ ...p, clips: (p.clips ?? []).map((x) => (x.id === c.id ? { ...x, start: c.orig!.start, end: c.orig!.end, orig: undefined } : x)) }));
   }
 
@@ -533,6 +559,7 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
               brand={brandActive(settings.brand, paid) ? { kit: settings.brand, cta: ctaOf(settings.brand, paid) } : null}
               words={project.transcript ? wordsForClip(project.transcript.words, current) : []}
               plan={currentPlan}
+              onTime={(abs) => setPlayhead((p) => (p == null || Math.abs(p - abs) > 0.2 ? abs : p))}
               model={captions && project.transcript ? brandedModel(previewModel, settings.brand, paid) : null}
               censor={settings.censor}
               watermark={!paid}
@@ -559,23 +586,53 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
                 )}
               </div>
               {paid ? (
-                <div className="trim">
-                  <span className="muted small">Início</span>
-                  <div className="trimBtns">
-                    <button className="btn" onClick={() => moveStart(current, "frase", -1)} title="Começar na frase anterior">« Frase</button>
-                    <button className="btn" onClick={() => moveStart(current, "fino", -1)}>−0,5 s</button>
-                    <button className="btn" onClick={() => moveStart(current, "fino", 1)}>+0,5 s</button>
-                    <button className="btn" onClick={() => moveStart(current, "frase", 1)} title="Começar na próxima frase">Frase »</button>
-                  </div>
-                  <span className="muted small">Fim</span>
-                  <div className="trimBtns">
-                    <button className="btn" onClick={() => moveEnd(current, "frase", -1)} title="Terminar na frase anterior">« Frase</button>
-                    <button className="btn" onClick={() => moveEnd(current, "fino", -1)}>−0,5 s</button>
-                    <button className="btn" onClick={() => moveEnd(current, "fino", 1)}>+0,5 s</button>
-                    <button className="btn" onClick={() => moveEnd(current, "frase", 1)} title="Terminar na próxima frase">Frase »</button>
-                  </div>
-                  <span className="muted" style={{ fontSize: 12 }}>O corte sempre encaixa no começo ou no fim de uma palavra, então nunca corta alguém no meio da fala.</span>
-                </div>
+                (() => {
+                  const ts = trimDraft?.id === current.id ? trimDraft.start : current.start;
+                  const te = trimDraft?.id === current.id ? trimDraft.end : current.end;
+                  const o = current.orig ?? { start: current.start, end: current.end };
+                  const wMin = Math.max(0, Math.min(o.start, ts) - 30);
+                  const wMax = Math.min(project.video.duration, Math.max(o.end, te) + 30);
+                  return (
+                    <div className="trim2">
+                      <TrimBar start={ts} end={te} min={wMin} max={wMax} orig={current.orig} playhead={playhead} onChange={(a, b, edge) => setCut(current, a, b, edge)} />
+                      <div className="trimRow">
+                        <span className="muted small">Início</span>
+                        <div className="trimBtns6">
+                          <button className="btn" onClick={() => moveStart(current, "frase", -1)} title="Começar na frase anterior">« Frase</button>
+                          <button className="btn" onClick={() => moveStart(current, 5, -1)}>−5 s</button>
+                          <button className="btn" onClick={() => moveStart(current, 1, -1)}>−1 s</button>
+                          <button className="btn" onClick={() => moveStart(current, 1, 1)}>+1 s</button>
+                          <button className="btn" onClick={() => moveStart(current, 5, 1)}>+5 s</button>
+                          <button className="btn" onClick={() => moveStart(current, "frase", 1)} title="Começar na próxima frase">Frase »</button>
+                        </div>
+                        <span className="muted small">Fim</span>
+                        <div className="trimBtns6">
+                          <button className="btn" onClick={() => moveEnd(current, "frase", -1)} title="Terminar na frase anterior">« Frase</button>
+                          <button className="btn" onClick={() => moveEnd(current, 5, -1)}>−5 s</button>
+                          <button className="btn" onClick={() => moveEnd(current, 1, -1)}>−1 s</button>
+                          <button className="btn" onClick={() => moveEnd(current, 1, 1)}>+1 s</button>
+                          <button className="btn" onClick={() => moveEnd(current, 5, 1)}>+5 s</button>
+                          <button className="btn" onClick={() => moveEnd(current, "frase", 1)} title="Terminar na próxima frase">Frase »</button>
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                        <button className="btn sm" disabled={playhead == null} onClick={() => playhead != null && setCut(current, playhead, te, "start", true)}>
+                          ⇤ Marcar início aqui
+                        </button>
+                        <button className="btn sm" disabled={playhead == null} onClick={() => playhead != null && setCut(current, ts, playhead, "end", true)}>
+                          Marcar fim aqui ⇥
+                        </button>
+                        <label className="small" style={{ display: "flex", gap: 6, alignItems: "center", marginLeft: "auto", color: "var(--soft)" }}>
+                          <input type="checkbox" checked={snapWords} onChange={(e) => setSnapWords(e.target.checked)} />
+                          Encaixar nas palavras
+                        </label>
+                      </div>
+                      <span className="muted" style={{ fontSize: 12 }}>
+                        Arraste as alças vermelhas (ou o trecho inteiro). “Marcar aqui” usa o ponto onde a prévia está tocando. Com “Encaixar nas palavras”, o corte não pega ninguém no meio da fala.
+                      </span>
+                    </div>
+                  );
+                })()
               ) : (
                 <button className="btn" style={{ alignSelf: "flex-start" }} onClick={onPlans}>
                   Liberar ajuste de início e fim

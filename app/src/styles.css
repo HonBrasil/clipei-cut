@@ -490,3 +490,21 @@ select.input { padding-right: 10px; }
 
 /* Aviso de renovação (planos pré-pagos) */
 .renewBanner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-radius: 14px; background: #2a2210; border: 1px solid #5a4614; color: #ffe7a8; font-size: 14px; }
+
+/* Editor de corte */
+.trim2 { display: flex; flex-direction: column; gap: 12px; }
+.trimRow { display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; align-items: center; }
+.trimBtns6 { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.trimBtns6 .btn { min-height: 36px; padding: 0 2px; font-size: 11.5px; white-space: nowrap; }
+.trimBar { display: flex; flex-direction: column; gap: 6px; user-select: none; touch-action: none; }
+.trimTrack { position: relative; height: 44px; border-radius: 10px; background: repeating-linear-gradient(90deg, #17171d 0 9px, #1b1b22 9px 10px); border: 1px solid var(--line2); cursor: pointer; }
+.trimOrig { position: absolute; top: 6px; bottom: 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.06); border: 1px dashed rgba(255, 255, 255, 0.18); pointer-events: none; }
+.trimSel { position: absolute; top: 0; bottom: 0; background: rgba(227, 18, 31, 0.22); border-top: 2px solid var(--red-text); border-bottom: 2px solid var(--red-text); cursor: grab; }
+.trimSel:active { cursor: grabbing; }
+.trimHead { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 6px rgba(255, 255, 255, 0.6); pointer-events: none; }
+.trimHandle { position: absolute; top: -4px; bottom: -4px; width: 14px; margin-left: -7px; border: 0; border-radius: 5px; background: var(--red-text); cursor: ew-resize; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); }
+.trimHandle::after { content: ""; position: absolute; left: 5px; right: 5px; top: 35%; bottom: 35%; border-left: 1px solid rgba(255,255,255,.7); border-right: 1px solid rgba(255,255,255,.7); }
+.trimHandle:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.trimLabels { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+.trimLabels b { color: var(--text); font-weight: 700; }
+@media (max-width: 560px) { .trimBtns6 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

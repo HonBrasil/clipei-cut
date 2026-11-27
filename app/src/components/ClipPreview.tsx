@@ -68,9 +68,12 @@ export function ClipPreview(props: {
   plan?: ClipPlan; // cortes, destaques, emojis e zoom (edição automática)
   speakers?: [Rect, Rect] | null; // podcast
   brand?: { kit: BrandKit; cta: Cta | null } | null; // kit da marca (planos pagos)
+  onTime?: (abs: number) => void; // tempo atual no vídeo original (para marcar início/fim)
 }) {
   const { video, clip, layout, webcam, model, censor, watermark, seek, plan, speakers, brand } = props;
   const words = plan ? plan.words : props.words;
+  const onTimeRef = useRef(props.onTime);
+  onTimeRef.current = props.onTime;
   const [zone, setZone] = useState<Zone>(() => (localStorage.getItem(ZONE_KEY) as Zone) || "off");
   const pickZone = (z: Zone) => {
     setZone(z);
@@ -176,6 +179,7 @@ export function ClipPreview(props: {
           v.currentTime = clip.start + (keeps?.[0]?.[0] ?? 0); // repete só o trecho do clipe
         }
         setT(Math.max(0, Math.min(len, tOut)));
+        onTimeRef.current?.(v.currentTime);
       }
       raf = requestAnimationFrame(draw);
     };
