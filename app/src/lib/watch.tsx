@@ -147,7 +147,7 @@ export function WatchProvider(props: {
         id: newProjectId(),
         createdAt: new Date().toISOString(),
         video: next.video,
-        prefs: { ...DURS[w.dur], count: null },
+        prefs: { ...DURS[w.dur], count: null, category: s.category ?? "outros" },
         layout: "cam-top",
       },
       {

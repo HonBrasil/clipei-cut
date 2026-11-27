@@ -174,7 +174,7 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
     if (!project.transcript) return;
     setMore({ busy: true });
     try {
-      const novos = await findClips(project.transcript, project.prefs, undefined, 8, { paid: true, exclude: clips, count: moreCount });
+      const novos = await findClips(project.transcript, project.prefs, undefined, 8, { paid: true, exclude: clips, count: moreCount, events: project.gameEvents ?? [] });
       const ids = new Set(clips.map((c) => c.id));
       const fresh = novos.filter((c) => !ids.has(c.id));
       onChange((p) => ({ ...p, clips: [...(p.clips ?? []), ...fresh] }));
@@ -494,7 +494,9 @@ export function Clips(props: { project: Project; paid: boolean; onChange: (fn: (
                 )}
                 <input className="titleInput" value={c.title} aria-label="Título do clipe" onChange={(e) => rename(c.id, e.target.value)} />
                 <span className="muted small" style={{ lineHeight: 1.45 }}>
-                  {c.reason && <span className="badge ai" style={{ marginRight: 6 }}>{c.reason}</span>}“{c.hook}”
+                  {c.game && <span className="badge gameBadge" style={{ marginRight: 6 }}>🎮 {c.game.label || c.game.type}</span>}
+                  {c.reason && !c.reason.startsWith("🎮") && <span className="badge ai" style={{ marginRight: 6 }}>{c.reason}</span>}
+                  {c.hook && `“${c.hook}”`}
                 </span>
                 <button
                   className="btn"

@@ -3,18 +3,20 @@ import { Icon } from "../components/Icon";
 import { extractAudioChunks, extractFrames } from "../lib/ffmpeg";
 import { detectWebcam } from "../lib/detect";
 import { ApiError, findClips, transcribe } from "../lib/ai";
+import { detectPlays, isGame } from "../lib/gameplay";
 import { fmtTime } from "../lib/format";
 import type { Layout, Project, Rect } from "../lib/types";
 import { useSettings } from "../lib/settings";
 import { openSupport } from "../lib/support";
 
-type StepId = "detect" | "audio" | "transcribe" | "ai";
+type StepId = "detect" | "audio" | "transcribe" | "gameplay" | "ai";
 type StepState = { status: "wait" | "doing" | "done"; pct?: number };
 
 const STEP_LABEL: Record<StepId, string> = {
   detect: "Detectando a webcam",
   audio: "Separando o áudio",
   transcribe: "Transcrevendo o que foi falado",
+  gameplay: "Procurando jogadas na tela",
   ai: "IA escolhendo os melhores momentos",
 };
 
@@ -34,6 +36,7 @@ export function Analysis(props: {
     detect: { status: "wait" },
     audio: { status: "wait" },
     transcribe: { status: "wait" },
+    gameplay: { status: "wait" },
     ai: { status: "wait" },
   });
   const [error, setError] = useState<string | null>(null);
@@ -91,12 +94,27 @@ export function Analysis(props: {
           onChange((p) => ({ ...p, transcript: saved }));
           set("transcribe", { status: "done" });
         }
-        if (transcript.words.length < 20) throw new Error("Quase não há fala nesse vídeo, então a IA não consegue escolher momentos.");
+        // 4) Jogadas na tela (modo jogo): picos de áudio + mudanças de imagem no PC, e a IA olha só esses momentos
+        let events = project.gameEvents;
+        if (isGame(project.prefs.category) && !events) {
+          set("gameplay", { status: "doing", pct: 0 });
+          events = await detectPlays(video, project.prefs.category!, (pct) => set("gameplay", { status: "doing", pct })).catch((e) => {
+            console.warn("jogadas", e);
+            return [];
+          });
+          if (cancelled) return;
+          const ev = events;
+          onChange((p) => ({ ...p, gameEvents: ev }));
+        }
+        set("gameplay", { status: "done" });
+        if (transcript.words.length < 20 && !(events ?? []).some((e) => e.score >= 60)) {
+          throw new Error("Quase não há fala nesse vídeo, então a IA não consegue escolher momentos.");
+        }
 
-        // 4) IA escolhe os clipes
+        // 5) IA escolhe os clipes
         set("ai", { status: "doing", pct: 0 });
         const perHour = { poucos: 4, equilibrado: 8, muitos: 14 }[settings.clipsAmount];
-        const clips = await findClips(transcript, project.prefs, (pct) => set("ai", { status: "doing", pct }), perHour, { paid });
+        const clips = await findClips(transcript, project.prefs, (pct) => set("ai", { status: "doing", pct }), perHour, { paid, events: events ?? [] });
         if (cancelled) return;
         set("ai", { status: "done" });
         onChange((p) => ({ ...p, clips }));

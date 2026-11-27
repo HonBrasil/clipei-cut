@@ -3,7 +3,7 @@
 import { readFile } from "@tauri-apps/plugin-fs";
 import { supabase } from "./supabase";
 import type { AudioChunk } from "./ffmpeg";
-import type { Clip, PostCopy, Prefs, Segment, Transcript, Word } from "./types";
+import type { Clip, GameEvent, PostCopy, Prefs, Segment, Transcript, Word } from "./types";
 
 export class ApiError extends Error {
   constructor(public code: string, message: string) {
@@ -11,7 +11,7 @@ export class ApiError extends Error {
   }
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
+export async function authHeaders(): Promise<Record<string, string>> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (!token) throw new ApiError("nao_autenticado", "Faça login novamente.");
@@ -21,11 +21,11 @@ async function authHeaders(): Promise<Record<string, string>> {
   };
 }
 
-function fnUrl(name: string): string {
+export function fnUrl(name: string): string {
   return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${name}`;
 }
 
-async function parse(res: Response): Promise<any> {
+export async function parse(res: Response): Promise<any> {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const code = body?.error?.code ?? `http_${res.status}`;
@@ -86,7 +86,7 @@ export async function findClips(
   prefs: Prefs,
   onProgress?: (p: number) => void,
   perHour = 8,
-  opts: { paid?: boolean; exclude?: Clip[]; count?: number | null } = {},
+  opts: { paid?: boolean; exclude?: Clip[]; count?: number | null; events?: GameEvent[] } = {},
 ): Promise<Clip[]> {
   const total = Math.max(1, (t.segments[t.segments.length - 1]?.end ?? 0) - (t.segments[0]?.start ?? 0));
   const count = opts.paid ? (opts.count ?? prefs.count ?? null) : null;
@@ -124,22 +124,52 @@ export async function findClips(
           maxClips,
           exact: Boolean(count),
           exclude: [...exclude, ...all].filter((c) => c.end > w[0].start && c.start < w[w.length - 1].end).map((c) => ({ s: c.start, e: c.end })),
+          category: prefs.category ?? null,
+          events: (opts.events ?? [])
+            .filter((e) => e.t >= w[0].start - 5 && e.t <= w[w.length - 1].end + 5)
+            .slice(0, 150)
+            .map((e) => ({ t: Math.round(e.t), score: e.score, type: e.type, label: e.label })),
         }),
       });
       return parse(res);
     });
     for (const c of data.clips as Omit<Clip, "id">[]) {
       if ([...all, ...exclude].some((o) => c.start < o.end - 2 && c.end > o.start + 2)) continue;
-      all.push({ ...snapToWords(c, t.words), id: `${Math.round(c.start * 10)}` });
+      const clip: Clip = { ...snapToWords(c, t.words), id: `${Math.round(c.start * 10)}` };
+      // Jogada vista na tela dentro do clipe: marca e reforça a nota
+      const ev = (opts.events ?? []).filter((e) => e.t >= clip.start - 1 && e.t <= clip.end + 1).sort((a, b) => b.score - a.score)[0];
+      if (ev) {
+        clip.game = { type: ev.type, label: ev.label, score: ev.score };
+        if (ev.score >= 70) clip.score = Math.max(clip.score, Math.round((clip.score + ev.score) / 2) + 5, Math.min(99, ev.score));
+      }
+      all.push(clip);
     }
     onProgress?.((i + 1) / windows.length);
+  }
+  // Jogadas fortes vistas na tela que nenhum clipe pegou (ex.: gameplay sem fala) viram clipes também
+  const target = (prefs.minSec + prefs.maxSec) / 2;
+  for (const ev of [...(opts.events ?? [])].filter((e) => e.score >= 75).sort((a, b) => b.score - a.score)) {
+    if ([...all, ...exclude].some((o) => ev.t >= o.start - 2 && ev.t <= o.end + 2)) continue;
+    const start = Math.max(0, ev.t - target * 0.6);
+    const c = snapToWords({ start, end: start + target }, t.words);
+    if ([...all, ...exclude].some((o) => c.start < o.end - 2 && c.end > o.start + 2)) continue;
+    const label = ev.label || ev.type;
+    all.push({
+      ...c,
+      id: `${Math.round(c.start * 10)}`,
+      title: label.charAt(0).toUpperCase() + label.slice(1),
+      score: Math.min(99, ev.score),
+      reason: `🎮 ${ev.type}`,
+      hook: "",
+      game: { type: ev.type, label: ev.label, score: ev.score },
+    });
   }
   const sorted = all.sort((a, b) => b.score - a.score);
   // Plano Grátis: no máximo 3 clipes; quantidade escolhida: corta no número pedido
   return sorted.slice(0, opts.paid ? (count ?? 200) : 3);
 }
 
-/** Ajusta início/fim para não cortar palavras no meio. */
+/** Ajusta início/fim para não cortar palavras no meio (só se houver fala perto da borda). */
 function snapToWords<T extends { start: number; end: number }>(c: T, words: Word[]): T {
   const first = words.find((w) => w.end > c.start - 0.3);
   let last: Word | undefined;
@@ -147,8 +177,9 @@ function snapToWords<T extends { start: number; end: number }>(c: T, words: Word
     if (w.start < c.end + 0.3) last = w;
     else break;
   }
-  const start = first ? Math.max(0, first.start - 0.15) : c.start;
-  const end = last && last.end > start ? last.end + 0.25 : c.end;
+  // Jogada sem fala: não puxa o corte para longe
+  const start = first && Math.abs(first.start - c.start) <= 1.5 ? Math.max(0, first.start - 0.15) : c.start;
+  const end = last && last.end > start && Math.abs(last.end - c.end) <= 1.5 ? last.end + 0.25 : c.end;
   return { ...c, start, end };
 }
 

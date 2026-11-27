@@ -7,7 +7,7 @@ import type { Quality } from "./settings";
 
 type RunResult = { code: number | null; stdout: string; stderr: string };
 
-async function run(bin: "ffmpeg" | "ffprobe", args: string[], cwd?: string): Promise<RunResult> {
+export async function run(bin: "ffmpeg" | "ffprobe", args: string[], cwd?: string): Promise<RunResult> {
   const out = await Command.sidecar(`binaries/${bin}`, args, cwd ? { cwd } : undefined).execute();
   return { code: out.code, stdout: out.stdout, stderr: out.stderr };
 }

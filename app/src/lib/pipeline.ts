@@ -3,14 +3,16 @@
 import { detectWebcam } from "./detect";
 import { extractAudioChunks, extractFrames } from "./ffmpeg";
 import { findClips, transcribe } from "./ai";
+import { detectPlays, isGame } from "./gameplay";
 import { saveProject } from "./projects";
 import type { Project } from "./types";
 
-export type PipelineStep = "detect" | "audio" | "transcribe" | "ai";
+export type PipelineStep = "detect" | "audio" | "transcribe" | "gameplay" | "ai";
 export const PIPELINE_LABEL: Record<PipelineStep, string> = {
   detect: "Detectando a webcam",
   audio: "Separando o áudio",
   transcribe: "Transcrevendo",
+  gameplay: "Procurando jogadas na tela",
   ai: "IA escolhendo os momentos",
 };
 
@@ -48,10 +50,17 @@ export async function analyzeInBackground(
   opts.onProgress("transcribe", 0);
   const transcript = await transcribe(chunks, opts.language, (pct) => opts.onProgress("transcribe", pct), opts.onCredits);
   await save({ ...p, transcript });
-  if (transcript.words.length < 20) throw new Error("Quase não há fala nesse vídeo.");
+
+  let events: import("./types").GameEvent[] = [];
+  if (isGame(p.prefs.category)) {
+    opts.onProgress("gameplay", 0);
+    events = await detectPlays(p.video, p.prefs.category!, (pct) => opts.onProgress("gameplay", pct)).catch(() => []);
+    await save({ ...p, gameEvents: events });
+  }
+  if (transcript.words.length < 20 && !events.some((e) => e.score >= 60)) throw new Error("Quase não há fala nesse vídeo.");
 
   opts.onProgress("ai", 0);
-  const clips = await findClips(transcript, p.prefs, (pct) => opts.onProgress("ai", pct), opts.perHour, { paid: opts.paid });
+  const clips = await findClips(transcript, p.prefs, (pct) => opts.onProgress("ai", pct), opts.perHour, { paid: opts.paid, events });
   await save({ ...p, clips });
   return p;
 }

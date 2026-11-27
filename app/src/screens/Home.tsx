@@ -6,6 +6,8 @@ import { probe } from "../lib/ffmpeg";
 import { fmtHours, fmtTime } from "../lib/format";
 import type { Prefs, Project } from "../lib/types";
 import { newProjectId } from "../lib/projects";
+import { useSettings } from "../lib/settings";
+import { GAME_CATS } from "../lib/gameplay";
 
 const VIDEO_EXT = ["mp4", "mkv", "mov", "flv", "webm", "avi", "ts", "m4v"];
 const DURATIONS: Array<{ label: string; prefs: Prefs }> = [
@@ -30,6 +32,7 @@ export function Home({
   onPlans: () => void;
 }) {
   const [dur, setDur] = useState(1);
+  const { settings, update } = useSettings();
   const [count, setCount] = useState<number | null>(null);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -59,7 +62,7 @@ export function Home({
           `Esse vídeo tem ${fmtTime(video.duration)} e você tem ${fmtHours(credits)} de créditos. Escolha um vídeo menor ou adicione créditos.`,
         );
       }
-      onStart({ id: newProjectId(), createdAt: new Date().toISOString(), video, prefs: { ...DURATIONS[dur].prefs, count: paid ? count : null }, layout: "cam-top" });
+      onStart({ id: newProjectId(), createdAt: new Date().toISOString(), video, prefs: { ...DURATIONS[dur].prefs, count: paid ? count : null, category: settings.category ?? "outros" }, layout: "cam-top" });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -139,6 +142,31 @@ export function Home({
           )}
         </div>
       )}
+
+      <section className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }} aria-labelledby="cat">
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <h2 id="cat" className="sub" style={{ fontSize: 16 }}>
+            Tipo de vídeo
+          </h2>
+          <span className="badge ai">novo · detecta jogadas na tela</span>
+        </div>
+        <div className="catGrid" role="radiogroup" aria-labelledby="cat">
+          {GAME_CATS.map((c) => (
+            <button key={c.id} role="radio" aria-checked={settings.category === c.id} className={`catOpt ${settings.category === c.id ? "on" : ""}`} onClick={() => update({ category: c.id })} title={c.hint}>
+              <span className="catIcon" aria-hidden>
+                {c.icon}
+              </span>
+              <b>{c.label}</b>
+              <span>{c.hint}</span>
+            </button>
+          ))}
+        </div>
+        <span className="muted small">
+          {settings.category === "conversa"
+            ? "A IA escolhe os momentos só pelo que foi falado."
+            : "Além da fala, a IA procura jogadas na imagem do jogo (abates, gols, vitórias…) — mesmo quando você está calado."}
+        </span>
+      </section>
 
       <section data-tour="duracao" className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }} aria-labelledby="dur">
         <h2 id="dur" className="sub" style={{ fontSize: 16 }}>

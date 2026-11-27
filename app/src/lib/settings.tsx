@@ -112,6 +112,7 @@ export type Settings = {
   brand: BrandKit;
   watch: WatchSettings;
   covers: boolean; // gerar capa junto com cada vídeo (planos pagos)
+  category: "fps" | "br" | "moba" | "esportes" | "luta" | "terror" | "outros" | "conversa"; // último tipo de vídeo escolhido
 };
 
 export type WatchSettings = {
@@ -168,6 +169,7 @@ export const DEFAULT_SETTINGS: Settings = {
   brand: DEFAULT_BRAND,
   watch: DEFAULT_WATCH,
   covers: true,
+  category: "outros",
 };
 
 export function allModels(s: Settings): CaptionModel[] {

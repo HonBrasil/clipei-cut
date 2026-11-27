@@ -73,6 +73,19 @@ Deno.serve(async (req) => {
     maxClips = Math.min(maxClips, 3);
   }
   const exact = paid && body.exact === true;
+  // Detecção de jogadas: tipo de vídeo e momentos vistos na tela
+  const CATS: Record<string, string> = {
+    fps: "gameplay de FPS", br: "gameplay de battle royale", moba: "gameplay de MOBA", esportes: "gameplay de esporte/corrida",
+    luta: "gameplay de jogo de luta", terror: "gameplay de terror", outros: "gameplay de jogo", conversa: "conversa / podcast / IRL",
+  };
+  const category = CATS[String(body.category ?? "")] ?? null;
+  const events = (Array.isArray(body.events) ? body.events : [])
+    .filter((e: { t?: unknown; score?: unknown }) => Number.isFinite(Number(e?.t)) && Number.isFinite(Number(e?.score)))
+    .slice(0, 150)
+    .map((e: { t: number; score: number; type?: unknown; label?: unknown }) => ({
+      t: Number(e.t), score: clamp(Math.round(Number(e.score)), 0, 100),
+      type: String(e.type ?? "").replace(/[\n\r]/g, " ").slice(0, 30), label: String(e.label ?? "").replace(/[\n\r]/g, " ").slice(0, 80),
+    }));
 
   const transcript = lines
     .filter((l) => Number.isFinite(l.s) && Number.isFinite(l.e) && typeof l.t === "string")
@@ -101,6 +114,11 @@ Deno.serve(async (req) => {
             `Duração de cada clipe: entre ${minSec} e ${maxSec} segundos.\n` +
             (exact ? `Escolha ${maxClips} clipes (quantidade pedida pelo usuário).\n` : `Escolha no máximo ${maxClips} clipes.\n`) +
             (exclude.length ? `Já escolhidos (não repetir): ${exclude.map((x) => `[${x.s.toFixed(1)}-${x.e.toFixed(1)}]`).join(" ")}\n` : "") +
+            (category ? `Tipo de vídeo: ${category}.\n` : "") +
+            (events.length
+              ? `\nJogadas vistas NA TELA por outra IA (segundo do vídeo, força 0-100). Elas valem tanto quanto a fala: prefira clipes que contenham as mais fortes, começando alguns segundos antes da jogada para dar contexto, mesmo que ali haja pouca fala:\n` +
+                events.map((e) => `- ${e.t.toFixed(0)} s · ${e.type} · ${e.label} (força ${e.score})`).join("\n") + "\n"
+              : "") +
             `\nTranscrição:\n${transcript}`,
         },
       ],

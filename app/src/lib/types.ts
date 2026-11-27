@@ -51,6 +51,7 @@ export type Clip = {
   hook: string;
   notes?: ClipNotes; // notas da IA (0-100) que formam a nota de viralidade
   highlights?: Highlight[]; // palavras fortes (com emoji opcional) escolhidas pela IA
+  game?: { type: string; label: string; score: number }; // jogada detectada na tela dentro do clipe
   post?: PostCopy; // texto do post gerado pela IA
   orig?: { start: number; end: number }; // corte original da IA (antes do ajuste manual)
 };
@@ -61,7 +62,12 @@ export type Prefs = {
   minSec: number;
   maxSec: number;
   count?: number | null; // quantidade escolhida (planos pagos); null = automático
+  category?: GameCategory; // tipo de vídeo (liga a detecção de jogadas)
 };
+
+export type GameCategory = "fps" | "br" | "moba" | "esportes" | "luta" | "terror" | "outros" | "conversa";
+/** Jogada vista na tela pela IA (tempo no vídeo original). */
+export type GameEvent = { t: number; score: number; type: string; label: string };
 
 export type Project = {
   id: string;
@@ -73,6 +79,7 @@ export type Project = {
   clips?: Clip[];
   webcam?: Rect | null; // em pixels do vídeo original
   captionPos?: "topo" | "meio" | "baixo"; // posição da legenda escolhida na tela de clipes
+  gameEvents?: GameEvent[]; // jogadas vistas na tela (modo jogo)
   speakers?: [Rect, Rect] | null; // podcast: área de cada pessoa (proporção 9:8), em pixels do vídeo original
   layout?: Layout;
   frameUrl?: string; // quadro de referência (data URL JPEG, salvo junto com o projeto)
