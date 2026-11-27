@@ -3,7 +3,8 @@
 const BASE = "https://api.checkout.infinitepay.io";
 
 function creds() {
-  const handle = (Deno.env.get("INFINITEPAY_HANDLE") ?? "").replace(/^\$/, "").trim();
+  // InfiniteTag sem $ e sem @, sem espaços e em minúsculas (ex.: "clipeistudio")
+  const handle = (Deno.env.get("INFINITEPAY_HANDLE") ?? "").trim().replace(/^[$@]+/, "").replace(/\s+/g, "").toLowerCase();
   const key = (Deno.env.get("INFINITEPAY_API_KEY") ?? "").trim();
   if (!handle) throw new Error("INFINITEPAY_HANDLE não configurado");
   return { handle, key };
