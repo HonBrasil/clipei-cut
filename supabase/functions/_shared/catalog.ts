@@ -4,7 +4,7 @@ export type Product = {
   id: string;
   title: string;
   price: number; // R$
-  kind: "plano" | "horas";
+  kind: "plano" | "horas" | "teste";
   period?: "mensal" | "anual";
   hours?: number;
 };
@@ -29,6 +29,8 @@ export const CATALOG: Record<string, Product> = {
   pro_duo_anual: { id: "pro_duo_anual", title: "Clipei Cut Pro Duo — anual (2 pessoas, 50 h cada)", price: 1259.9, kind: "plano", period: "anual" },
   pro_trio_anual: { id: "pro_trio_anual", title: "Clipei Cut Pro Trio — anual (3 pessoas, 50 h cada)", price: 1799.9, kind: "plano", period: "anual" },
   pro_squad_anual: { id: "pro_squad_anual", title: "Clipei Cut Pro Squad — anual (4 pessoas, 50 h cada)", price: 2249.9, kind: "plano", period: "anual" },
+  // Só para o admin testar o pagamento de ponta a ponta (dá 6 minutos de horas avulsas)
+  teste_1: { id: "teste_1", title: "Clipei Cut — teste de pagamento", price: 1, kind: "teste" },
   horas_5: { id: "horas_5", title: "Clipei Cut — +5 horas (não vencem)", price: 24.9, kind: "horas", hours: 5 },
   horas_20: { id: "horas_20", title: "Clipei Cut — +20 horas (não vencem)", price: 69.9, kind: "horas", hours: 20 },
 };

@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import { brl } from "../lib/account";
 import { AdminUsers, UserDrawer } from "./AdminUsers";
 import { AdminCreators } from "./AdminCreators";
+import { PaymentTest } from "../components/PaymentTest";
 
 type Stats = {
   generatedAt: string;
@@ -100,6 +101,7 @@ export function Admin() {
       {view === "criadores" && <AdminCreators onOpen={setOpenUser} />}
       {openUser && <UserDrawer userId={openUser} onClose={() => setOpenUser(null)} onChanged={() => setStatsStale(true)} />}
 
+      {view === "geral" && <PaymentTest />}
       {view === "geral" && error && <div className="error">Não consegui carregar o painel: {error}</div>}
 
       {view === "geral" && stats && (

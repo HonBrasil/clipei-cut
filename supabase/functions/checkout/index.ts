@@ -17,6 +17,11 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const product = CATALOG[String(body.product ?? "")];
   if (!product) return fail("produto", "Plano inválido.");
+  // Produto de teste: só administradores
+  const ADMINS = (Deno.env.get("ADMIN_EMAILS") ?? "g4master01@gmail.com").split(",").map((e) => e.trim().toLowerCase());
+  if (product.kind === "teste" && (!ADMINS.includes(user.email.toLowerCase()) || !user.email_confirmed_at)) {
+    return fail("produto", "Plano inválido.");
+  }
 
   const db = admin();
   // Seguidor de criador parceiro: desconto no 1º pagamento de plano
