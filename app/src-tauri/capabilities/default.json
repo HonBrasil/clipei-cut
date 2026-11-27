@@ -155,6 +155,15 @@
       "identifier": "opener:allow-open-url",
       "allow": [
         {
+          "url": "https://checkout.infinitepay.io/*"
+        },
+        {
+          "url": "https://*.infinitepay.io/*"
+        },
+        {
+          "url": "https://clipeistudiodigital.com.br/*"
+        },
+        {
           "url": "https://www.mercadopago.com.br/*"
         },
         {
